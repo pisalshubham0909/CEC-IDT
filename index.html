@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CEC IDT ( Shubham Pisal ) - Premium Local PDF/Excel Productivity Tool Suite</title>
+  <meta name="description" content="Merge PDFs, convert JPGs to PDF, resize pages, and extract scanned files or PDFs to Excel with intelligent OCR. Local, private, and fast.">
+  <link rel="stylesheet" href="style.css">
+  
+  <!-- CDNs for core utility libraries -->
+  <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.0.5/dist/tesseract.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js" crossorigin="anonymous"></script>
+  
+  <!-- CDNs for Expansion Pack (Word, PowerPoint, HTML2PDF, Mammoth) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js" crossorigin="anonymous"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/docx@7.3.0/build/index.js" crossorigin="anonymous"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js" crossorigin="anonymous"></script>
+</head>
+<body>
+  
+  <div class="container">
+    <!-- Header -->
+    <header>
+      <div class="logo" id="logo-home">
+        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
+        </svg>
+        <span>CEC IDT ( Shubham Pisal )</span>
+      </div>
+      
+      <nav id="main-nav">
+        <button class="nav-tab active" data-target="home-section">Home</button>
+        <button class="nav-tab" data-target="merge-section">Merge</button>
+        <button class="nav-tab" data-target="jpg-section">Images to PDF</button>
+        <button class="nav-tab" data-target="resize-section">Resize</button>
+        <button class="nav-tab" data-target="excel-section">PDF to Excel</button>
+        <button class="nav-tab" data-target="compress-section">Compress</button>
+        <button class="nav-tab" data-target="doc-convert-section">Convert Docs</button>
+      </nav>
+    </header>
+
+    <!-- Main Content Area -->
+    <main>
+      
+      <!-- 1. DASHBOARD / HOME SECTION -->
+      <section id="home-section" class="tool-section active">
+        <div style="text-align: center; margin-bottom: 2.5rem; margin-top: 1rem;">
+          <h1 style="font-family: var(--font-display); font-size: 2.75rem; font-weight: 800; margin-bottom: 0.75rem; background: linear-gradient(135deg, #ffffff 40%, var(--primary) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Local PDF &amp; Spreadsheet Automation</h1>
+          <p style="color: var(--text-muted); font-size: 1.1rem; max-width: 600px; margin: 0 auto; line-height: 1.6;">High-performance client-side tool suite running completely in your browser. All file processing is 100% local and secure.</p>
+        </div>
+        
+        <div class="dashboard-grid">
+          <!-- Card: Merger -->
+          <div class="tool-card merger" data-target="merge-section">
+            <div class="tool-icon-wrapper">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V12M12 22l4-4M12 22l-4-4M12 2v10M12 2L8 6h8l-4-4z"/></svg>
+            </div>
+            <h2 class="tool-title">Merge PDFs</h2>
+            <p class="tool-desc">Combine multiple PDF files in any order. Drag to arrange pages, view file details, and compile instantly.</p>
+            <div class="tool-action">Get Started <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div>
+          </div>
+
+          <!-- Card: JPG to PDF -->
+          <div class="tool-card converter" data-target="jpg-section">
+            <div class="tool-icon-wrapper">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            </div>
+            <h2 class="tool-title">Images to PDF</h2>
+            <p class="tool-desc">Convert JPG, PNG, or WebP images to a PDF. Adjust page scaling, orientation, and layout margins.</p>
+            <div class="tool-action">Get Started <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div>
+          </div>
+
+          <!-- Card: Resizer -->
+          <div class="tool-card resizer" data-target="resize-section">
+            <div class="tool-icon-wrapper">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 8 21"/><rect x="3" y="3" width="14" height="14" rx="2" ry="2"/></svg>
+            </div>
+            <h2 class="tool-title">Resize PDF</h2>
+            <p class="tool-desc">Scale page formats (A4, Letter, A3) dynamically. Stretch content layouts or adapt paper dimensions.</p>
+            <div class="tool-action">Get Started <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div>
+          </div>
+
+          <!-- Card: Excel OCR -->
+          <div class="tool-card excel" data-target="excel-section">
+            <div class="tool-icon-wrapper">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
+            </div>
+            <h2 class="tool-title">PDF to Excel (OCR)</h2>
+            <p class="tool-desc">Extract data arrays from digital or scanned documents. Edit cells in an interactive grid editor, then save as Excel.</p>
+            <div class="tool-action">Get Started <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div>
+          </div>
+
+          <!-- Card: Compress (NEW) -->
+          <div class="tool-card resizer" data-target="compress-section" style="border-color: rgba(245, 158, 11, 0.15);">
+            <div class="tool-icon-wrapper" style="stroke: var(--warning)">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14h6v6H4zm10 0h6v6h-6zM4 4h6v6H4zm10 0h6v6h-6z"/></svg>
+            </div>
+            <h2 class="tool-title">Compress PDF</h2>
+            <p class="tool-desc">Optimize page contents and downscale image parameters locally to shrink the total PDF size.</p>
+            <div class="tool-action">Get Started <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div>
+          </div>
+
+          <!-- Card: Document Converters (NEW) -->
+          <div class="tool-card converter" data-target="doc-convert-section" style="border-color: rgba(6, 182, 212, 0.15);">
+            <div class="tool-icon-wrapper" style="stroke: var(--secondary)">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h4v4m0-4L14 10M8 20H4v-4m0 4l6-6"/></svg>
+            </div>
+            <h2 class="tool-title">Document Converters</h2>
+            <p class="tool-desc">Convert PDF files to editable Word (DOCX) or PowerPoint (PPTX) presentations, or convert Word files to PDF.</p>
+            <div class="tool-action">Get Started <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div>
+          </div>
+        </div>
+      </section>
+
+      
+      <!-- 2. MERGE PDF SECTION -->
+      <section id="merge-section" class="tool-section">
+        <div class="workspace-layout">
+          <div class="main-panel">
+            <h2 class="panel-title">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22V12M12 22l4-4M12 22l-4-4M12 2v10M12 2L8 6h8l-4-4z"/></svg>
+              PDF Merge Queue
+            </h2>
+            <div class="dropzone" id="merge-dropzone">
+              <div class="dropzone-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+              </div>
+              <p class="dropzone-title">Drag &amp; drop PDF files here</p>
+              <p class="dropzone-subtitle">or click to browse your folders</p>
+              <input type="file" id="merge-file-input" multiple accept="application/pdf" style="display: none;">
+            </div>
+            <div class="file-list-container" id="merge-file-list"></div>
+          </div>
+          <div class="sidebar-panel">
+            <h3 class="panel-title">Merge Options</h3>
+            <div class="settings-group">
+              <label class="settings-label" for="merge-output-name">Output Name</label>
+              <input type="text" id="merge-output-name" class="settings-input" value="Merged_Documents.pdf">
+            </div>
+            <button class="action-btn" id="btn-run-merge" disabled>Merge Files</button>
+            
+            <div class="progress-container" id="merge-progress">
+              <div class="progress-header">
+                <span class="progress-title"><span class="progress-spinner"></span>Processing...</span>
+                <span class="progress-value" id="merge-progress-percent">0%</span>
+              </div>
+              <div class="progress-bar-bg"><div class="progress-bar-fill" id="merge-progress-bar"></div></div>
+              <div class="progress-msg" id="merge-progress-msg">Preparing documents...</div>
+            </div>
+            <div class="success-card" id="merge-success" style="display: none;">
+              <div class="success-icon"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+              <div class="success-title">Merge Succeeded!</div>
+              <button class="action-btn secondary-btn" id="btn-download-merge">Download File</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      
+      <!-- 3. IMAGES TO PDF SECTION -->
+      <section id="jpg-section" class="tool-section">
+        <div class="workspace-layout">
+          <div class="main-panel">
+            <h2 class="panel-title">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--secondary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              Image Input Queue
+            </h2>
+            <div class="dropzone" id="jpg-dropzone">
+              <div class="dropzone-icon" style="stroke: var(--secondary)">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+              </div>
+              <p class="dropzone-title">Drag &amp; drop JPG, PNG, or WebP images</p>
+              <p class="dropzone-subtitle">or click to browse local files</p>
+              <input type="file" id="jpg-file-input" multiple accept="image/jpeg, image/png, image/webp" style="display: none;">
+            </div>
+            <div class="file-list-container" id="jpg-file-list"></div>
+          </div>
+          <div class="sidebar-panel">
+            <h3 class="panel-title">Layout Settings</h3>
+            <div class="settings-group">
+              <label class="settings-label" for="jpg-output-name">Output Name</label>
+              <input type="text" id="jpg-output-name" class="settings-input" value="Images_Document.pdf">
+            </div>
+            <div class="settings-group">
+              <label class="settings-label" for="jpg-page-size">Page Size</label>
+              <select id="jpg-page-size" class="settings-select">
+                <option value="fit" selected>Fit to Image Dimensions</option>
+                <option value="a4">A4 Standard (210 x 297 mm)</option>
+                <option value="letter">US Letter (8.5 x 11 in)</option>
+              </select>
+            </div>
+            <div class="settings-group" id="jpg-orientation-group" style="display: none;">
+              <label class="settings-label" for="jpg-orientation">Orientation</label>
+              <select id="jpg-orientation" class="settings-select">
+                <option value="portrait" selected>Portrait</option>
+                <option value="landscape">Landscape</option>
+              </select>
+            </div>
+            <div class="settings-group">
+              <label class="settings-label" for="jpg-margins">Page Margins</label>
+              <select id="jpg-margins" class="settings-select">
+                <option value="none" selected>No Margins (0px)</option>
+                <option value="small">Small (20px)</option>
+                <option value="large">Large (40px)</option>
+              </select>
+            </div>
+            <div class="settings-group" id="jpg-fit-group" style="display: none;">
+              <label class="settings-label" for="jpg-fit-mode">Image Scaling</label>
+              <select id="jpg-fit-mode" class="settings-select">
+                <option value="contain" selected>Contain (Preserve proportions)</option>
+                <option value="cover">Cover (Fill page canvas)</option>
+              </select>
+            </div>
+            <button class="action-btn" id="btn-run-jpg" disabled>Generate PDF</button>
+            
+            <div class="progress-container" id="jpg-progress">
+              <div class="progress-header">
+                <span class="progress-title"><span class="progress-spinner"></span>Drawing...</span>
+                <span class="progress-value" id="jpg-progress-percent">0%</span>
+              </div>
+              <div class="progress-bar-bg"><div class="progress-bar-fill" id="jpg-progress-bar"></div></div>
+            </div>
+            <div class="success-card" id="jpg-success" style="display: none;">
+              <div class="success-icon" style="stroke: var(--secondary); color: var(--secondary); background: rgba(6, 182, 212, 0.1)"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+              <div class="success-title">PDF Document Ready!</div>
+              <button class="action-btn secondary-btn" id="btn-download-jpg">Download PDF</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      
+      <!-- 4. RESIZE PDF SECTION -->
+      <section id="resize-section" class="tool-section">
+        <div class="workspace-layout">
+          <div class="main-panel">
+            <h2 class="panel-title">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 8 21"/><rect x="3" y="3" width="14" height="14" rx="2" ry="2"/></svg>
+              PDF Resizer Workspace
+            </h2>
+            <div class="dropzone" id="resize-dropzone">
+              <div class="dropzone-icon" style="stroke: var(--warning)">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              </div>
+              <p class="dropzone-title">Drag &amp; drop the PDF file to resize</p>
+              <input type="file" id="resize-file-input" accept="application/pdf" style="display: none;">
+            </div>
+            <div class="file-list-container" id="resize-file-info" style="display: none;">
+              <div class="file-item">
+                <div class="file-thumbnail"><span class="file-thumbnail-icon" style="color: var(--warning)">PDF</span></div>
+                <div class="file-info">
+                  <div class="file-name" id="resize-file-name">document.pdf</div>
+                  <div class="file-meta"><span id="resize-file-size">0 KB</span><span id="resize-file-pages">Pages: --</span></div>
+                </div>
+                <div class="file-actions">
+                  <button class="file-btn delete" id="btn-clear-resize"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                </div>
+              </div>
+            </div>
+            <div class="canvas-preview-container" id="resize-canvas-preview" style="display: none;"></div>
+          </div>
+          <div class="sidebar-panel">
+            <h3 class="panel-title">Resize Options</h3>
+            <div class="settings-group">
+              <label class="settings-label" for="resize-output-name">Output Name</label>
+              <input type="text" id="resize-output-name" class="settings-input" value="Resized_Document.pdf">
+            </div>
+            <div class="settings-group">
+              <label class="settings-label" for="resize-target-format">Paper Size</label>
+              <select id="resize-target-format" class="settings-select">
+                <option value="a4" selected>A4 Standard</option>
+                <option value="letter">US Letter</option>
+                <option value="a3">A3 Presentation</option>
+              </select>
+            </div>
+            <div class="settings-group">
+              <label class="settings-label" for="resize-orientation">Layout Direction</label>
+              <select id="resize-orientation" class="settings-select">
+                <option value="portrait" selected>Portrait</option>
+                <option value="landscape">Landscape</option>
+              </select>
+            </div>
+            <div class="settings-group">
+              <label class="settings-label" for="resize-scaling-mode">Scaling Method</label>
+              <select id="resize-scaling-mode" class="settings-select">
+                <option value="scale-content" selected>Scale &amp; Fit Content</option>
+                <option value="fit-canvas">Resize Canvas (Center original)</option>
+              </select>
+            </div>
+            <button class="action-btn" id="btn-run-resize" style="background: linear-gradient(135deg, var(--warning) 0%, #f59e0b 100%);" disabled>Scale Canvas</button>
+            
+            <div class="progress-container" id="resize-progress">
+              <div class="progress-header">
+                <span class="progress-title"><span class="progress-spinner"></span>Resizing...</span>
+                <span class="progress-value" id="resize-progress-percent">0%</span>
+              </div>
+              <div class="progress-bar-bg"><div class="progress-bar-fill" id="resize-progress-bar"></div></div>
+            </div>
+            <div class="success-card" id="resize-success" style="display: none;">
+              <div class="success-icon" style="stroke: var(--warning); color: var(--warning); background: rgba(245, 158, 11, 0.1)"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+              <div class="success-title">Resizing Complete!</div>
+              <button class="action-btn secondary-btn" id="btn-download-resize">Download PDF</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      
+      <!-- 5. PDF TO EXCEL SECTION -->
+      <section id="excel-section" class="tool-section">
+        <div id="excel-editor-view" class="excel-editor-view">
+          <div class="excel-editor-header">
+            <div>
+              <h2 class="excel-editor-title" id="excel-editor-filename">Invoice_Spreadsheet.xlsx</h2>
+              <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.2rem;">Double-click or click any cells to edit the extracted data grid before generating the final Excel sheet.</p>
+            </div>
+            <div class="excel-actions-bar">
+              <div class="spreadsheet-controls">
+                <button class="ctrl-btn" id="btn-grid-add-row">Add Row</button>
+                <button class="ctrl-btn" id="btn-grid-add-col">Add Column</button>
+              </div>
+              <button class="action-btn success-btn" id="btn-grid-export" style="width: auto;">Export Excel File</button>
+              <button class="action-btn secondary-btn" id="btn-grid-back" style="width: auto;">Upload New</button>
+            </div>
+          </div>
+          <div class="spreadsheet-container">
+            <table class="spreadsheet-table" id="spreadsheet-table"></table>
+          </div>
+        </div>
+
+        <div id="excel-upload-view" class="workspace-layout">
+          <div class="main-panel">
+            <h2 class="panel-title">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
+              Table Extractor Dropzone
+            </h2>
+            <div class="dropzone" id="excel-dropzone">
+              <div class="dropzone-icon" style="stroke: var(--success)">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="13" width="8" height="4" rx="1"/></svg>
+              </div>
+              <p class="dropzone-title">Drag &amp; drop PDF files or images (JPG, PNG)</p>
+              <input type="file" id="excel-file-input" accept="application/pdf, image/jpeg, image/png" style="display: none;">
+            </div>
+            <div class="file-list-container" id="excel-file-info" style="display: none;">
+              <div class="file-item">
+                <div class="file-thumbnail"><span class="file-thumbnail-icon" id="excel-thumbnail-text" style="color: var(--success)">PDF</span></div>
+                <div class="file-info">
+                  <div class="file-name" id="excel-file-name">document_table.pdf</div>
+                  <div class="file-meta"><span id="excel-file-size">0 KB</span><span id="excel-file-pages">Pages: --</span></div>
+                </div>
+                <div class="file-actions">
+                  <button class="file-btn delete" id="btn-clear-excel"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                </div>
+              </div>
+            </div>
+            <div class="canvas-preview-container" id="excel-canvas-preview" style="display: none;"></div>
+          </div>
+          <div class="sidebar-panel">
+            <h3 class="panel-title">Extraction Parameters</h3>
+            <div class="settings-group">
+              <label class="settings-label" for="excel-output-name">Output Sheet Name</label>
+              <input type="text" id="excel-output-name" class="settings-input" value="Extracted_Table.xlsx">
+            </div>
+            <div class="settings-group">
+              <label class="toggle-switch">
+                <div class="toggle-info">
+                  <span class="toggle-name">Force OCR Path</span>
+                  <span class="toggle-desc">Required for scanned sheets/images</span>
+                </div>
+                <input type="checkbox" id="excel-force-ocr" class="toggle-checkbox">
+              </label>
+            </div>
+            <button class="action-btn success-btn" id="btn-run-excel" disabled>Extract Layout</button>
+            
+            <div class="progress-container" id="excel-progress">
+              <div class="progress-header">
+                <span class="progress-title"><span class="progress-spinner"></span>Parsing Layout...</span>
+                <span class="progress-value" id="excel-progress-percent">0%</span>
+              </div>
+              <div class="progress-bar-bg"><div class="progress-bar-fill" id="excel-progress-bar"></div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      
+      <!-- 6. COMPRESS PDF SECTION (NEW) -->
+      <section id="compress-section" class="tool-section">
+        <div class="workspace-layout">
+          <div class="main-panel">
+            <h2 class="panel-title" style="color: var(--warning)">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 14h6v6H4zm10 0h6v6h-6zM4 4h6v6H4zm10 0h6v6h-6z"/></svg>
+              PDF Compress Workspace
+            </h2>
+            <div class="dropzone" id="compress-dropzone">
+              <div class="dropzone-icon" style="stroke: var(--warning)">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+              </div>
+              <p class="dropzone-title">Drag &amp; drop PDF files to compress</p>
+              <input type="file" id="compress-file-input" accept="application/pdf" style="display: none;">
+            </div>
+            
+            <div class="file-list-container" id="compress-file-info" style="display: none;">
+              <div class="file-item">
+                <div class="file-thumbnail"><span class="file-thumbnail-icon" style="color: var(--warning)">PDF</span></div>
+                <div class="file-info">
+                  <div class="file-name" id="compress-file-name">document.pdf</div>
+                  <div class="file-meta"><span id="compress-file-size">0 KB</span><span id="compress-file-pages">Pages: --</span></div>
+                </div>
+                <div class="file-actions">
+                  <button class="file-btn delete" id="btn-clear-compress"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                </div>
+              </div>
+            </div>
+            <div class="canvas-preview-container" id="compress-canvas-preview" style="display: none;"></div>
+          </div>
+          
+          <div class="sidebar-panel">
+            <h3 class="panel-title">Compression Profile</h3>
+            <div class="settings-group">
+              <label class="settings-label" for="compress-output-name">Output Name</label>
+              <input type="text" id="compress-output-name" class="settings-input" value="Compressed_Document.pdf">
+            </div>
+            <div class="settings-group">
+              <label class="settings-label" for="compress-level">Compression Factor</label>
+              <select id="compress-level" class="settings-select">
+                <option value="medium" selected>Standard (150 DPI, Medium quality)</option>
+                <option value="high">Max Squeeze (120 DPI, Low quality)</option>
+                <option value="low">Keep Quality (180 DPI, High quality)</option>
+              </select>
+            </div>
+            <button class="action-btn" id="btn-run-compress" style="background: linear-gradient(135deg, var(--warning) 0%, #f59e0b 100%);" disabled>Compress PDF</button>
+            
+            <div class="progress-container" id="compress-progress">
+              <div class="progress-header">
+                <span class="progress-title"><span class="progress-spinner"></span>Re-encoding streams...</span>
+                <span class="progress-value" id="compress-progress-percent">0%</span>
+              </div>
+              <div class="progress-bar-bg"><div class="progress-bar-fill" id="compress-progress-bar"></div></div>
+            </div>
+            <div class="success-card" id="compress-success" style="display: none;">
+              <div class="success-icon" style="stroke: var(--warning); color: var(--warning); background: rgba(245, 158, 11, 0.1)"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+              <div class="success-title">Compression Finished!</div>
+              <div class="success-text" id="compress-savings-label">Saved 0 KB (0%)</div>
+              <button class="action-btn secondary-btn" id="btn-download-compress">Download Optimized PDF</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      
+      <!-- 7. DOCUMENT CONVERTERS SECTION (NEW) -->
+      <section id="doc-convert-section" class="tool-section">
+        <div class="workspace-layout">
+          <div class="main-panel">
+            <h2 class="panel-title" style="color: var(--secondary)">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 4h4v4m0-4L14 10M8 20H4v-4m0 4l6-6"/></svg>
+              Convert Document Formats
+            </h2>
+            
+            <!-- Type Switcher Tab Buttons inside panel -->
+            <div class="spreadsheet-controls" style="margin-bottom: 1.5rem; justify-content: center;">
+              <button class="ctrl-btn" id="btn-conv-pdf-to-word" style="background: rgba(255, 255, 255, 0.08);">PDF to Word</button>
+              <button class="ctrl-btn" id="btn-conv-pdf-to-pptx">PDF to PowerPoint</button>
+              <button class="ctrl-btn" id="btn-conv-word-to-pdf">Word to PDF</button>
+            </div>
+
+            <div class="dropzone" id="conv-dropzone">
+              <div class="dropzone-icon" style="stroke: var(--secondary)">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              </div>
+              <p class="dropzone-title" id="conv-dropzone-title">Drag &amp; drop PDF file here</p>
+              <input type="file" id="conv-file-input" accept="application/pdf" style="display: none;">
+            </div>
+
+            <div class="file-list-container" id="conv-file-info" style="display: none;">
+              <div class="file-item">
+                <div class="file-thumbnail"><span class="file-thumbnail-icon" id="conv-thumbnail-text" style="color: var(--secondary)">PDF</span></div>
+                <div class="file-info">
+                  <div class="file-name" id="conv-file-name">document.pdf</div>
+                  <div class="file-meta"><span id="conv-file-size">0 KB</span></div>
+                </div>
+                <div class="file-actions">
+                  <button class="file-btn delete" id="btn-clear-conv"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                </div>
+              </div>
+            </div>
+            
+            <div class="canvas-preview-container" id="conv-canvas-preview" style="display: none;"></div>
+          </div>
+          
+          <div class="sidebar-panel">
+            <h3 class="panel-title">Conversion Actions</h3>
+            <div class="settings-group">
+              <label class="settings-label" for="conv-output-name">Target Output Name</label>
+              <input type="text" id="conv-output-name" class="settings-input" value="Document_Converted.docx">
+            </div>
+            <button class="action-btn" id="btn-run-conv" style="background: linear-gradient(135deg, var(--secondary) 0%, #0891b2 100%);" disabled>Convert Format</button>
+            
+            <div class="progress-container" id="conv-progress">
+              <div class="progress-header">
+                <span class="progress-title"><span class="progress-spinner"></span>Parsing layout grid...</span>
+                <span class="progress-value" id="conv-progress-percent">0%</span>
+              </div>
+              <div class="progress-bar-bg"><div class="progress-bar-fill" id="conv-progress-bar"></div></div>
+            </div>
+            <div class="success-card" id="conv-success" style="display: none;">
+              <div class="success-icon" style="stroke: var(--secondary); color: var(--secondary); background: rgba(6, 182, 212, 0.1)"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+              <div class="success-title">Conversion Complete!</div>
+              <button class="action-btn secondary-btn" id="btn-download-conv">Download Converted File</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer>
+      <p>CEC IDT ( Shubham Pisal ) runs entirely in your local browser sandbox. No file data is uploaded to remote servers.</p>
+    </footer>
+  </div>
+
+  <!-- JavaScript application controllers -->
+  <script src="pdf-tools.js"></script>
+  <script src="excel-tools.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
