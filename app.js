@@ -132,7 +132,8 @@ function initMergerTab() {
   function handleFiles(files) {
     successCard.style.display = 'none';
     for (const file of files) {
-      if (file.type === 'application/pdf') {
+      const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+      if (isPdf) {
         mergeQueue.push({
           id: crypto.randomUUID(),
           file: file
@@ -376,8 +377,10 @@ function initImagesTab() {
   function handleImages(files) {
     successCard.style.display = 'none';
     const allowed = ['image/jpeg', 'image/png', 'image/webp'];
+    const allowedExts = ['jpg', 'jpeg', 'png', 'webp'];
     for (const file of files) {
-      if (allowed.includes(file.type)) {
+      const ext = file.name.split('.').pop().toLowerCase();
+      if (allowed.includes(file.type) || allowedExts.includes(ext)) {
         imageQueue.push({
           id: crypto.randomUUID(),
           file: file,
@@ -574,7 +577,8 @@ function initResizerTab() {
   });
 
   async function loadFile(file) {
-    if (file.type !== 'application/pdf') {
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (!isPdf) {
       alert("Only PDF files are supported in this tool.");
       return;
     }
@@ -741,8 +745,13 @@ function initExcelTab() {
   });
 
   async function loadFile(file) {
-    const allowed = ['application/pdf', 'image/jpeg', 'image/png'];
-    if (!allowed.includes(file.type)) {
+    const fileType = file.type;
+    const ext = file.name.split('.').pop().toLowerCase();
+    
+    const isImage = fileType.startsWith('image/') || ['jpg', 'jpeg', 'png'].includes(ext);
+    const isPdf = fileType === 'application/pdf' || ext === 'pdf';
+    
+    if (!isImage && !isPdf) {
       alert("Unsupported file format. Please upload a PDF or an Image (JPG/PNG).");
       return;
     }
@@ -756,7 +765,7 @@ function initExcelTab() {
     fileSizeLabel.textContent = formatBytes(file.size);
     
     // Auto-check Force OCR switch if it's an image
-    if (file.type.startsWith('image/')) {
+    if (isImage) {
       forceOcrSwitch.checked = true;
       forceOcrSwitch.disabled = true;
       thumbnailText.textContent = "IMG";
@@ -1047,7 +1056,8 @@ function initCompressTab() {
   });
 
   async function loadFile(file) {
-    if (file.type !== 'application/pdf') {
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    if (!isPdf) {
       alert("Only PDF files are supported.");
       return;
     }
@@ -1243,14 +1253,16 @@ function initConvertersTab() {
   });
 
   async function loadFile(file) {
+    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
+    
     // Validate correct format based on mode
     if (currentConvType === 'word-to-pdf') {
-      if (!file.name.endsWith('.docx')) {
+      if (!file.name.toLowerCase().endsWith('.docx')) {
         alert("Please upload a valid Microsoft Word (.docx) file.");
         return;
       }
     } else {
-      if (file.type !== 'application/pdf') {
+      if (!isPdf) {
         alert("Please upload a PDF file.");
         return;
       }
@@ -1266,7 +1278,7 @@ function initConvertersTab() {
     fileNameLabel.textContent = file.name;
     fileSizeLabel.textContent = formatBytes(file.size);
     
-    if (file.type === 'application/pdf') {
+    if (isPdf) {
       previewContainer.style.display = 'flex';
       previewContainer.innerHTML = '<span style="color: var(--text-muted); font-size: 0.85rem;">Rendering preview...</span>';
       try {

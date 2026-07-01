@@ -9,11 +9,15 @@
  */
 async function extractTableData(file, isScanned, onProgress = () => {}) {
   const fileType = file.type;
+  const ext = file.name.split('.').pop().toLowerCase();
   
-  if (fileType.startsWith('image/')) {
+  const isImage = fileType.startsWith('image/') || ['jpg', 'jpeg', 'png', 'webp'].includes(ext);
+  const isPdf = fileType === 'application/pdf' || ext === 'pdf';
+  
+  if (isImage) {
     onProgress(0.1, "Initializing OCR worker...");
     return await extractFromImageOCR(file, onProgress);
-  } else if (fileType === 'application/pdf') {
+  } else if (isPdf) {
     if (isScanned) {
       return await extractFromPDFOCR(file, onProgress);
     } else {
@@ -299,6 +303,9 @@ function reconstructTableFromTokens(tokens) {
   // Fill density array
   const density = new Array(span).fill(0);
   for (const token of mergedTokens) {
+    // Ignore extremely wide tokens (headers/footers/titles) for column profile detection
+    if (token.w > span * 0.5) continue;
+    
     const start = Math.max(0, Math.floor(token.x - minX));
     const end = Math.min(span - 1, Math.ceil(token.x + token.w - minX));
     for (let j = start; j <= end; j++) {
@@ -323,11 +330,12 @@ function reconstructTableFromTokens(tokens) {
     smoothed[i] = sum / count;
   }
   
-  // Detect column boundaries: intervals where smoothed density > 0 (or close to 0)
+  // Detect column boundaries: intervals where smoothed density > threshold
   const columns = [];
   let inColumn = false;
   let colStart = 0;
-  const threshold = Math.max(...smoothed) * 0.015; // 1.5% of peak density
+  // Adaptive threshold: 0.5% of peak density, capped between 0.1 and 1.5 to capture sparse columns
+  const threshold = Math.max(0.1, Math.min(1.5, Math.max(...smoothed) * 0.005));
   
   for (let i = 0; i < span; i++) {
     if (smoothed[i] > threshold) {
@@ -455,30 +463,48 @@ async function pdfToWord(file, onProgress = () => {}) {
   
   onProgress(0.85, "Creating Word structure...");
   
-  // Map rows of text to docx paragraph nodes
-  const paragraphs = [];
+  const docChildren = [];
+  const tableRows = [];
+  
   tableData.forEach((row) => {
-    // Join cells with tabs or spaces to align them like the original text rows
-    const lineText = row.filter(cell => cell.trim() !== "").join("    ");
+    // If it's a completely empty row, skip
+    if (row.every(cell => cell.trim() === "")) return;
     
-    if (lineText.trim() !== "") {
-      paragraphs.push(
+    // Check if this row is a single-cell line (like a title or heading)
+    const nonEmptyCells = row.filter(cell => cell.trim() !== "");
+    if (nonEmptyCells.length === 1 && row.length > 1) {
+      // If we have accumulated table rows, compile and push the table!
+      if (tableRows.length > 0) {
+        docChildren.push(createDocxTable(tableRows));
+        tableRows.length = 0; // reset
+      }
+      
+      docChildren.push(
         new docx.Paragraph({
           children: [
             new docx.TextRun({
-              text: lineText,
+              text: nonEmptyCells[0],
               font: "Calibri",
-              size: 24 // 12pt
+              size: 24,
+              bold: nonEmptyCells[0].length < 60 // bold shorter headings
             })
           ],
-          spacing: { after: 120 } // paragraph spacing
+          spacing: { before: 180, after: 120 }
         })
       );
+    } else {
+      // Accumulate as a table row
+      tableRows.push(row);
     }
   });
+  
+  // Push any remaining table rows
+  if (tableRows.length > 0) {
+    docChildren.push(createDocxTable(tableRows));
+  }
 
-  if (paragraphs.length === 0) {
-    paragraphs.push(
+  if (docChildren.length === 0) {
+    docChildren.push(
       new docx.Paragraph({
         children: [new docx.TextRun("No extractable text could be found in the source PDF.")]
       })
@@ -488,7 +514,7 @@ async function pdfToWord(file, onProgress = () => {}) {
   const doc = new docx.Document({
     sections: [{
       properties: {},
-      children: paragraphs
+      children: docChildren
     }]
   });
   
@@ -603,5 +629,51 @@ async function wordToPDF(file, outputName = "Document.pdf", onProgress = () => {
   // Cleanup
   document.body.removeChild(printDiv);
   onProgress(1.0, "Conversion finished!");
+}
+
+/**
+ * Helper to build a native formatted table structure for docx.js Word exports
+ */
+function createDocxTable(rowsData) {
+  // Find maximum column count in this table block
+  const maxCols = Math.max(...rowsData.map(r => r.length));
+  
+  return new docx.Table({
+    width: {
+      size: 100,
+      type: docx.WidthType.PERCENTAGE
+    },
+    rows: rowsData.map(row => {
+      // Pad row to maxCols to prevent structure misalignment
+      const paddedRow = [...row];
+      while (paddedRow.length < maxCols) paddedRow.push("");
+      
+      return new docx.TableRow({
+        children: paddedRow.map(cellText => {
+          return new docx.TableCell({
+            children: [
+              new docx.Paragraph({
+                children: [
+                  new docx.TextRun({
+                    text: cellText.trim(),
+                    font: "Calibri",
+                    size: 20 // 10pt font for compact, readable cells
+                  })
+                ],
+                spacing: { after: 60, before: 60 }
+              })
+            ],
+            verticalAlign: docx.VerticalAlign.CENTER,
+            margins: {
+              top: 100,
+              bottom: 100,
+              left: 150,
+              right: 150
+            }
+          });
+        })
+      });
+    })
+  });
 }
 
