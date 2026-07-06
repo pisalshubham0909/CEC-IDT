@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>CEC IDT ( Shubham Pisal ) - Premium Local PDF/Excel Productivity Tool Suite</title>
-  <meta name="description" content="Merge PDFs, convert JPGs to PDF, resize pages, and extract scanned files or PDFs to Excel with intelligent OCR. Local, private, and fast.">
+  <title>CEC IDT Automation Tool - Premium Local PDF Productivity Tool Suite</title>
+  <meta name="description" content="Merge PDFs, convert JPGs to PDF, resize pages, and protect documents. Local, private, and fast.">
   <link rel="stylesheet" href="style.css">
   
   <!-- CDNs for core utility libraries -->
@@ -28,7 +28,7 @@
         <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/>
         </svg>
-        <span>CEC IDT ( Shubham Pisal )</span>
+        <span>CEC IDT Automation Tool</span>
       </div>
       
       <nav id="main-nav">
@@ -36,8 +36,12 @@
         <button class="nav-tab" data-target="merge-section">Merge</button>
         <button class="nav-tab" data-target="jpg-section">Images to PDF</button>
         <button class="nav-tab" data-target="resize-section">Resize</button>
-        <button class="nav-tab" data-target="excel-section">PDF to Excel</button>
+        <button class="nav-tab" data-target="split-section">Split</button>
+        <button class="nav-tab" data-target="rotate-section">Rotate Pages</button>
+        <button class="nav-tab" data-target="watermark-section">Watermark</button>
+        <button class="nav-tab" data-target="edit-section">Edit &amp; Sign</button>
         <button class="nav-tab" data-target="compress-section">Compress</button>
+        <button class="nav-tab" data-target="security-section">Security</button>
         <button class="nav-tab" data-target="doc-convert-section">Convert Docs</button>
       </nav>
     </header>
@@ -83,17 +87,47 @@
             <div class="tool-action">Get Started <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div>
           </div>
 
-          <!-- Card: Excel OCR -->
-          <div class="tool-card excel" data-target="excel-section">
-            <div class="tool-icon-wrapper">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="3" y1="15" x2="21" y2="15"/></svg>
+          <!-- Card: Split PDF (NEW) -->
+          <div class="tool-card splitter" data-target="split-section" style="border-color: rgba(6, 182, 212, 0.15);">
+            <div class="tool-icon-wrapper" style="stroke: var(--secondary)">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14h18M3 10h18M12 2v20"/></svg>
             </div>
-            <h2 class="tool-title">PDF to Excel (OCR)</h2>
-            <p class="tool-desc">Extract data arrays from digital or scanned documents. Edit cells in an interactive grid editor, then save as Excel.</p>
+            <h2 class="tool-title">Split PDF</h2>
+            <p class="tool-desc">Extract specific page ranges or split a PDF into separate files. Preview pages visually before splitting.</p>
             <div class="tool-action">Get Started <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div>
           </div>
 
-          <!-- Card: Compress (NEW) -->
+          <!-- Card: Rotate Pages (NEW) -->
+          <div class="tool-card rotator" data-target="rotate-section" style="border-color: rgba(139, 92, 246, 0.15);">
+            <div class="tool-icon-wrapper" style="stroke: var(--primary)">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+            </div>
+            <h2 class="tool-title">Rotate Pages</h2>
+            <p class="tool-desc">Rotate individual pages or the entire document clockwise or counter-clockwise with a visual grid.</p>
+            <div class="tool-action">Get Started <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div>
+          </div>
+
+          <!-- Card: Watermark PDF (NEW) -->
+          <div class="tool-card watermarker" data-target="watermark-section" style="border-color: rgba(16, 185, 129, 0.15);">
+            <div class="tool-icon-wrapper" style="stroke: var(--success)">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01"/></svg>
+            </div>
+            <h2 class="tool-title">Watermark PDF</h2>
+            <p class="tool-desc">Overlay custom text or image stamps onto all pages. Control position, rotation, color, and opacity.</p>
+            <div class="tool-action">Get Started <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div>
+          </div>
+
+          <!-- Card: Edit & Sign (NEW) -->
+          <div class="tool-card editor" data-target="edit-section" style="border-color: rgba(6, 182, 212, 0.15);">
+            <div class="tool-icon-wrapper" style="stroke: var(--secondary)">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+            </div>
+            <h2 class="tool-title">Edit &amp; Sign</h2>
+            <p class="tool-desc">Draw hand-drawn signatures, add custom text blocks, or upload images directly onto PDF page layers.</p>
+            <div class="tool-action">Get Started <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div>
+          </div>
+
+          <!-- Card: Compress -->
           <div class="tool-card resizer" data-target="compress-section" style="border-color: rgba(245, 158, 11, 0.15);">
             <div class="tool-icon-wrapper" style="stroke: var(--warning)">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14h6v6H4zm10 0h6v6h-6zM4 4h6v6H4zm10 0h6v6h-6z"/></svg>
@@ -103,7 +137,17 @@
             <div class="tool-action">Get Started <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div>
           </div>
 
-          <!-- Card: Document Converters (NEW) -->
+          <!-- Card: PDF Security (NEW) -->
+          <div class="tool-card security" data-target="security-section" style="border-color: rgba(239, 68, 68, 0.15);">
+            <div class="tool-icon-wrapper" style="stroke: var(--error)">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+            </div>
+            <h2 class="tool-title">PDF Security</h2>
+            <p class="tool-desc">Encrypt files with passwords, or decrypt password-protected PDFs locally using the Web Crypto API.</p>
+            <div class="tool-action">Get Started <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div>
+          </div>
+
+          <!-- Card: Document Converters -->
           <div class="tool-card converter" data-target="doc-convert-section" style="border-color: rgba(6, 182, 212, 0.15);">
             <div class="tool-icon-wrapper" style="stroke: var(--secondary)">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 4h4v4m0-4L14 10M8 20H4v-4m0 4l6-6"/></svg>
@@ -311,79 +355,380 @@
       </section>
 
       
-      <!-- 5. PDF TO EXCEL SECTION -->
-      <section id="excel-section" class="tool-section">
-        <div id="excel-editor-view" class="excel-editor-view">
-          <div class="excel-editor-header">
-            <div>
-              <h2 class="excel-editor-title" id="excel-editor-filename">Invoice_Spreadsheet.xlsx</h2>
-              <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.2rem;">Double-click or click any cells to edit the extracted data grid before generating the final Excel sheet.</p>
-            </div>
-            <div class="excel-actions-bar">
-              <div class="spreadsheet-controls">
-                <button class="ctrl-btn" id="btn-grid-add-row">Add Row</button>
-                <button class="ctrl-btn" id="btn-grid-add-col">Add Column</button>
-              </div>
-              <button class="action-btn success-btn" id="btn-grid-export" style="width: auto;">Export Excel File</button>
-              <button class="action-btn secondary-btn" id="btn-grid-back" style="width: auto;">Upload New</button>
-            </div>
-          </div>
-          <div class="spreadsheet-container">
-            <table class="spreadsheet-table" id="spreadsheet-table"></table>
-          </div>
-        </div>
-
-        <div id="excel-upload-view" class="workspace-layout">
+      <!-- 5. SPLIT PDF SECTION -->
+      <section id="split-section" class="tool-section">
+        <div class="workspace-layout">
           <div class="main-panel">
             <h2 class="panel-title">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="9" y1="3" x2="9" y2="21"/><line x1="15" y1="3" x2="15" y2="21"/></svg>
-              Table Extractor Dropzone
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--secondary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 14h18M3 10h18M12 2v20"/></svg>
+              Split PDF Workspace
             </h2>
-            <div class="dropzone" id="excel-dropzone">
-              <div class="dropzone-icon" style="stroke: var(--success)">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="13" width="8" height="4" rx="1"/></svg>
+            <div class="dropzone" id="split-dropzone">
+              <div class="dropzone-icon" style="stroke: var(--secondary)">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
               </div>
-              <p class="dropzone-title">Drag &amp; drop PDF files or images (JPG, PNG)</p>
-              <input type="file" id="excel-file-input" accept="application/pdf, image/jpeg, image/png" style="display: none;">
+              <p class="dropzone-title">Drag &amp; drop the PDF file to split</p>
+              <input type="file" id="split-file-input" accept="application/pdf" style="display: none;">
             </div>
-            <div class="file-list-container" id="excel-file-info" style="display: none;">
+            
+            <div class="file-list-container" id="split-file-info" style="display: none;">
               <div class="file-item">
-                <div class="file-thumbnail"><span class="file-thumbnail-icon" id="excel-thumbnail-text" style="color: var(--success)">PDF</span></div>
+                <div class="file-thumbnail"><span class="file-thumbnail-icon" style="color: var(--secondary)">PDF</span></div>
                 <div class="file-info">
-                  <div class="file-name" id="excel-file-name">document_table.pdf</div>
-                  <div class="file-meta"><span id="excel-file-size">0 KB</span><span id="excel-file-pages">Pages: --</span></div>
+                  <div class="file-name" id="split-file-name">document.pdf</div>
+                  <div class="file-meta"><span id="split-file-size">0 KB</span><span id="split-file-pages">Pages: --</span></div>
                 </div>
                 <div class="file-actions">
-                  <button class="file-btn delete" id="btn-clear-excel"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                  <button class="file-btn delete" id="btn-clear-split"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
                 </div>
               </div>
             </div>
-            <div class="canvas-preview-container" id="excel-canvas-preview" style="display: none;"></div>
+            <div class="split-grid" id="split-grid" style="display: none;"></div>
           </div>
+          
           <div class="sidebar-panel">
-            <h3 class="panel-title">Extraction Parameters</h3>
+            <h3 class="panel-title">Split Configuration</h3>
             <div class="settings-group">
-              <label class="settings-label" for="excel-output-name">Output Sheet Name</label>
-              <input type="text" id="excel-output-name" class="settings-input" value="Extracted_Table.xlsx">
+              <label class="settings-label" for="split-output-name">Output Name / Prefix</label>
+              <input type="text" id="split-output-name" class="settings-input" value="Split_Pages">
             </div>
             <div class="settings-group">
-              <label class="toggle-switch">
-                <div class="toggle-info">
-                  <span class="toggle-name">Force OCR Path</span>
-                  <span class="toggle-desc">Required for scanned sheets/images</span>
-                </div>
-                <input type="checkbox" id="excel-force-ocr" class="toggle-checkbox">
-              </label>
+              <label class="settings-label" for="split-mode">Split Method</label>
+              <select id="split-mode" class="settings-select">
+                <option value="range" selected>Custom Page Ranges (e.g. 1, 3, 5-8)</option>
+                <option value="all">Extract All Pages (as separate PDFs in ZIP)</option>
+              </select>
             </div>
-            <button class="action-btn success-btn" id="btn-run-excel" disabled>Extract Layout</button>
+            <div class="settings-group" id="split-range-group">
+              <label class="settings-label" for="split-range">Page Range</label>
+              <input type="text" id="split-range" class="settings-input" placeholder="e.g. 1, 3, 5-8">
+              <p style="color: var(--text-muted); font-size: 0.75rem; margin-top: 0.3rem;">Or click thumbnails on the left to select pages.</p>
+            </div>
+            <button class="action-btn" id="btn-run-split" style="background: linear-gradient(135deg, var(--secondary) 0%, #0891b2 100%);" disabled>Split PDF</button>
             
-            <div class="progress-container" id="excel-progress">
+            <div class="progress-container" id="split-progress">
               <div class="progress-header">
-                <span class="progress-title"><span class="progress-spinner"></span>Parsing Layout...</span>
-                <span class="progress-value" id="excel-progress-percent">0%</span>
+                <span class="progress-title"><span class="progress-spinner"></span>Splitting...</span>
+                <span class="progress-value" id="split-progress-percent">0%</span>
               </div>
-              <div class="progress-bar-bg"><div class="progress-bar-fill" id="excel-progress-bar"></div></div>
-              <div class="progress-msg" id="excel-progress-msg">Parsing layout grid...</div>
+              <div class="progress-bar-bg"><div class="progress-bar-fill" id="split-progress-bar"></div></div>
+              <div class="progress-msg" id="split-progress-msg">Extracting pages...</div>
+            </div>
+            <div class="success-card" id="split-success" style="display: none;">
+              <div class="success-icon" style="stroke: var(--secondary); color: var(--secondary); background: rgba(6, 182, 212, 0.1)"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+              <div class="success-title">Splitting Complete!</div>
+              <button class="action-btn secondary-btn" id="btn-download-split">Download Split Output</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ROTATE PDF PAGES SECTION -->
+      <section id="rotate-section" class="tool-section">
+        <div class="workspace-layout">
+          <div class="main-panel">
+            <h2 class="panel-title">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+              Rotate Pages Workspace
+            </h2>
+            <div class="dropzone" id="rotate-dropzone">
+              <div class="dropzone-icon" style="stroke: var(--primary)">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              </div>
+              <p class="dropzone-title">Drag &amp; drop the PDF file to rotate</p>
+              <input type="file" id="rotate-file-input" accept="application/pdf" style="display: none;">
+            </div>
+            
+            <div class="file-list-container" id="rotate-file-info" style="display: none;">
+              <div class="file-item">
+                <div class="file-thumbnail"><span class="file-thumbnail-icon" style="color: var(--primary)">PDF</span></div>
+                <div class="file-info">
+                  <div class="file-name" id="rotate-file-name">document.pdf</div>
+                  <div class="file-meta"><span id="rotate-file-size">0 KB</span><span id="rotate-file-pages">Pages: --</span></div>
+                </div>
+                <div class="file-actions">
+                  <button class="file-btn delete" id="btn-clear-rotate"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                </div>
+              </div>
+            </div>
+            <div class="rotate-grid" id="rotate-grid" style="display: none;"></div>
+          </div>
+          
+          <div class="sidebar-panel">
+            <h3 class="panel-title">Rotation Options</h3>
+            <div class="settings-group">
+              <label class="settings-label" for="rotate-output-name">Output Name</label>
+              <input type="text" id="rotate-output-name" class="settings-input" value="Rotated_Document.pdf">
+            </div>
+            <div class="spreadsheet-controls" style="margin-bottom: 1.5rem; flex-direction: column; gap: 0.5rem;">
+              <button class="ctrl-btn" id="btn-rotate-all-cw" style="width: 100%;">Rotate All Clockwise (+90°)</button>
+              <button class="ctrl-btn" id="btn-rotate-all-ccw" style="width: 100%;">Rotate All Counter-Cw (-90°)</button>
+            </div>
+            <button class="action-btn" id="btn-run-rotate" style="background: linear-gradient(135deg, var(--primary) 0%, rgba(139, 92, 246, 0.8) 100%);" disabled>Save Rotations</button>
+            
+            <div class="progress-container" id="rotate-progress">
+              <div class="progress-header">
+                <span class="progress-title"><span class="progress-spinner"></span>Applying rotations...</span>
+                <span class="progress-value" id="rotate-progress-percent">0%</span>
+              </div>
+              <div class="progress-bar-bg"><div class="progress-bar-fill" id="rotate-progress-bar"></div></div>
+              <div class="progress-msg" id="rotate-progress-msg">Rotating PDF pages...</div>
+            </div>
+            <div class="success-card" id="rotate-success" style="display: none;">
+              <div class="success-icon" style="stroke: var(--primary); color: var(--primary); background: rgba(139, 92, 246, 0.1)"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+              <div class="success-title">Rotated PDF Ready!</div>
+              <button class="action-btn secondary-btn" id="btn-download-rotate">Download PDF</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- WATERMARK PDF SECTION -->
+      <section id="watermark-section" class="tool-section">
+        <div class="workspace-layout">
+          <div class="main-panel">
+            <h2 class="panel-title">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--success)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3M12 17h.01"/></svg>
+              Watermark Workspace
+            </h2>
+            <div class="dropzone" id="watermark-dropzone">
+              <div class="dropzone-icon" style="stroke: var(--success)">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              </div>
+              <p class="dropzone-title">Drag &amp; drop PDF file here to watermark</p>
+              <input type="file" id="watermark-file-input" accept="application/pdf" style="display: none;">
+            </div>
+            
+            <div class="file-list-container" id="watermark-file-info" style="display: none;">
+              <div class="file-item">
+                <div class="file-thumbnail"><span class="file-thumbnail-icon" style="color: var(--success)">PDF</span></div>
+                <div class="file-info">
+                  <div class="file-name" id="watermark-file-name">document.pdf</div>
+                  <div class="file-meta"><span id="watermark-file-size">0 KB</span><span id="watermark-file-pages">Pages: --</span></div>
+                </div>
+                <div class="file-actions">
+                  <button class="file-btn delete" id="btn-clear-watermark"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                </div>
+              </div>
+            </div>
+            <div class="canvas-preview-container" id="watermark-canvas-preview" style="display: none;"></div>
+          </div>
+          
+          <div class="sidebar-panel">
+            <h3 class="panel-title">Watermark Settings</h3>
+            <div class="settings-group">
+              <label class="settings-label" for="watermark-output-name">Output Name</label>
+              <input type="text" id="watermark-output-name" class="settings-input" value="Watermarked_Document.pdf">
+            </div>
+            
+            <div class="settings-group">
+              <label class="settings-label" for="watermark-type">Watermark Type</label>
+              <select id="watermark-type" class="settings-select">
+                <option value="text" selected>Text Overlay</option>
+                <option value="image">Image Logo</option>
+              </select>
+            </div>
+            
+            <!-- Text Watermark Options -->
+            <div id="watermark-text-options">
+              <div class="settings-group">
+                <label class="settings-label" for="watermark-text">Watermark Text</label>
+                <input type="text" id="watermark-text" class="settings-input" value="CONFIDENTIAL">
+              </div>
+              <div class="settings-group">
+                <label class="settings-label" for="watermark-font-size">Font Size</label>
+                <input type="number" id="watermark-font-size" class="settings-input" value="60" min="10" max="200">
+              </div>
+              <div class="settings-group">
+                <label class="settings-label" for="watermark-color">Text Color</label>
+                <input type="color" id="watermark-color" class="settings-input" value="#ef4444" style="height: 40px; padding: 2px; cursor: pointer;">
+              </div>
+              <div class="settings-group">
+                <label class="settings-label" for="watermark-rotation">Rotation Angle (Degrees)</label>
+                <input type="number" id="watermark-rotation" class="settings-input" value="-45" min="-360" max="360">
+              </div>
+            </div>
+            
+            <!-- Image Watermark Options -->
+            <div id="watermark-image-options" style="display: none;">
+              <div class="settings-group">
+                <label class="settings-label">Watermark Image</label>
+                <input type="file" id="watermark-img-file" class="settings-input" accept="image/png, image/jpeg">
+              </div>
+              <div class="settings-group">
+                <label class="settings-label" for="watermark-img-scale">Image Scale</label>
+                <input type="range" id="watermark-img-scale" class="settings-input" min="5" max="100" value="30">
+              </div>
+            </div>
+            
+            <!-- Shared Watermark Options -->
+            <div class="settings-group">
+              <label class="settings-label" for="watermark-opacity">Opacity (Transparency)</label>
+              <input type="range" id="watermark-opacity" class="settings-input" min="5" max="100" value="30">
+            </div>
+            <div class="settings-group">
+              <label class="settings-label" for="watermark-position">Position</label>
+              <select id="watermark-position" class="settings-select">
+                <option value="center" selected>Center</option>
+                <option value="top">Top Header</option>
+                <option value="bottom">Bottom Footer</option>
+              </select>
+            </div>
+            
+            <button class="action-btn" id="btn-run-watermark" style="background: linear-gradient(135deg, var(--success) 0%, #059669 100%);" disabled>Apply Watermark</button>
+            
+            <div class="progress-container" id="watermark-progress">
+              <div class="progress-header">
+                <span class="progress-title"><span class="progress-spinner"></span>Watermarking...</span>
+                <span class="progress-value" id="watermark-progress-percent">0%</span>
+              </div>
+              <div class="progress-bar-bg"><div class="progress-bar-fill" id="watermark-progress-bar"></div></div>
+              <div class="progress-msg" id="watermark-progress-msg">Injecting stamp layers...</div>
+            </div>
+            <div class="success-card" id="watermark-success" style="display: none;">
+              <div class="success-icon" style="stroke: var(--success); color: var(--success); background: rgba(16, 185, 129, 0.1)"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+              <div class="success-title">Watermarking Done!</div>
+              <button class="action-btn secondary-btn" id="btn-download-watermark">Download PDF</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- PDF EDIT & SIGN SECTION -->
+      <section id="edit-section" class="tool-section">
+        <div class="workspace-layout" style="grid-template-columns: 1fr 280px; gap: 1.5rem;">
+          <div class="main-panel" style="display: flex; flex-direction: column;">
+            <h2 class="panel-title">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--secondary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              PDF Signing &amp; Annotations Editor
+            </h2>
+            <div class="dropzone" id="edit-dropzone">
+              <div class="dropzone-icon" style="stroke: var(--secondary)">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              </div>
+              <p class="dropzone-title">Drag &amp; drop PDF to start editing and signing</p>
+              <input type="file" id="edit-file-input" accept="application/pdf" style="display: none;">
+            </div>
+            
+            <div class="file-list-container" id="edit-file-info" style="display: none;">
+              <div class="file-item">
+                <div class="file-thumbnail"><span class="file-thumbnail-icon" style="color: var(--secondary)">PDF</span></div>
+                <div class="file-info">
+                  <div class="file-name" id="edit-file-name">document.pdf</div>
+                  <div class="file-meta"><span id="edit-file-size">0 KB</span><span id="edit-file-pages">Pages: --</span></div>
+                </div>
+                <div class="file-actions">
+                  <button class="file-btn delete" id="btn-clear-edit"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Editor Workspace -->
+            <div id="editor-workspace" style="display: none; flex: 1; max-height: 60vh; overflow-y: auto; background: rgba(0,0,0,0.3); border-radius: 12px; padding: 2rem; border: 1px solid var(--panel-border); align-items: center; flex-direction: column; gap: 2rem;">
+            </div>
+          </div>
+          
+          <div class="sidebar-panel">
+            <h3 class="panel-title">Editor Toolbox</h3>
+            <div class="settings-group">
+              <label class="settings-label" for="edit-output-name">Output Name</label>
+              <input type="text" id="edit-output-name" class="settings-input" value="Signed_Document.pdf">
+            </div>
+            
+            <div class="spreadsheet-controls" style="margin-bottom: 1.5rem; flex-direction: column; gap: 0.75rem;">
+              <button class="ctrl-btn" id="btn-edit-add-text" style="width: 100%; text-align: left; padding: 0.75rem 1rem;" disabled>
+                Add Text Box
+              </button>
+              <button class="ctrl-btn" id="btn-edit-add-draw-sig" style="width: 100%; text-align: left; padding: 0.75rem 1rem;" disabled>
+                Draw Signature
+              </button>
+              <button class="ctrl-btn" id="btn-edit-add-img-sig" style="width: 100%; text-align: left; padding: 0.75rem 1rem;" disabled>
+                Upload Logo/Sig
+                <input type="file" id="edit-logo-input" accept="image/png, image/jpeg" style="display: none;">
+              </button>
+            </div>
+            
+            <button class="action-btn" id="btn-run-edit" style="background: linear-gradient(135deg, var(--secondary) 0%, #0891b2 100%);" disabled>Burn Changes</button>
+            
+            <div class="progress-container" id="edit-progress">
+              <div class="progress-header">
+                <span class="progress-title"><span class="progress-spinner"></span>Saving...</span>
+                <span class="progress-value" id="edit-progress-percent">0%</span>
+              </div>
+              <div class="progress-bar-bg"><div class="progress-bar-fill" id="edit-progress-bar"></div></div>
+              <div class="progress-msg" id="edit-progress-msg">Compiling signature layers...</div>
+            </div>
+            <div class="success-card" id="edit-success" style="display: none;">
+              <div class="success-icon" style="stroke: var(--secondary); color: var(--secondary); background: rgba(6, 182, 212, 0.1)"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+              <div class="success-title">Document Saved!</div>
+              <button class="action-btn secondary-btn" id="btn-download-edit">Download Signed PDF</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 10. PDF SECURITY SECTION -->
+      <section id="security-section" class="tool-section">
+        <div class="workspace-layout">
+          <div class="main-panel">
+            <h2 class="panel-title" style="color: var(--error)">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              PDF Security Workspace
+            </h2>
+            <div class="dropzone" id="security-dropzone">
+              <div class="dropzone-icon" style="stroke: var(--error)">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+              </div>
+              <p class="dropzone-title">Drag &amp; drop PDF file here</p>
+              <input type="file" id="security-file-input" accept="application/pdf" style="display: none;">
+            </div>
+            
+            <div class="file-list-container" id="security-file-info" style="display: none;">
+              <div class="file-item">
+                <div class="file-thumbnail"><span class="file-thumbnail-icon" style="color: var(--error)">PDF</span></div>
+                <div class="file-info">
+                  <div class="file-name" id="security-file-name">document.pdf</div>
+                  <div class="file-meta"><span id="security-file-size">0 KB</span><span id="security-file-pages">Pages: --</span></div>
+                </div>
+                <div class="file-actions">
+                  <button class="file-btn delete" id="btn-clear-security"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+                </div>
+              </div>
+            </div>
+            <div class="canvas-preview-container" id="security-canvas-preview" style="display: none;"></div>
+          </div>
+          
+          <div class="sidebar-panel">
+            <h3 class="panel-title">Security Actions</h3>
+            <div class="settings-group">
+              <label class="settings-label" for="security-output-name">Output Name</label>
+              <input type="text" id="security-output-name" class="settings-input" value="Protected_Document.pdf">
+            </div>
+            <div class="settings-group">
+              <label class="settings-label" for="security-mode">Operation Mode</label>
+              <select id="security-mode" class="settings-select">
+                <option value="encrypt" selected>Encrypt (Add Password)</option>
+                <option value="decrypt">Decrypt (Remove Password)</option>
+              </select>
+            </div>
+            <div class="settings-group">
+              <label class="settings-label" for="security-password" id="security-password-label">Set Open Password</label>
+              <input type="password" id="security-password" class="settings-input" placeholder="Enter password...">
+            </div>
+            <button class="action-btn" id="btn-run-security" style="background: linear-gradient(135deg, var(--error) 0%, #dc2626 100%);" disabled>Apply Security</button>
+            
+            <div class="progress-container" id="security-progress">
+              <div class="progress-header">
+                <span class="progress-title"><span class="progress-spinner"></span>Applying...</span>
+                <span class="progress-value" id="security-progress-percent">0%</span>
+              </div>
+              <div class="progress-bar-bg"><div class="progress-bar-fill" id="security-progress-bar"></div></div>
+              <div class="progress-msg" id="security-progress-msg">Applying encryption layers...</div>
+            </div>
+            <div class="success-card" id="security-success" style="display: none;">
+              <div class="success-icon" style="stroke: var(--error); color: var(--error); background: rgba(239, 68, 68, 0.1)"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+              <div class="success-title" id="security-success-title">Security Applied!</div>
+              <button class="action-btn secondary-btn" id="btn-download-security">Download Secured PDF</button>
             </div>
           </div>
         </div>
@@ -502,11 +847,18 @@
               <label class="settings-label" for="conv-output-name">Target Output Name</label>
               <input type="text" id="conv-output-name" class="settings-input" value="Document_Converted.docx">
             </div>
+            <div class="settings-group" id="conv-word-mode-group">
+              <label class="settings-label" for="conv-word-mode">Layout Conversion Mode</label>
+              <select id="conv-word-mode" class="settings-select">
+                <option value="layout" selected>Preserve Layout (100% Visual Accuracy)</option>
+                <option value="text">Editable Text Flow (Paragraphs &amp; Tables)</option>
+              </select>
+            </div>
             <button class="action-btn" id="btn-run-conv" style="background: linear-gradient(135deg, var(--secondary) 0%, #0891b2 100%);" disabled>Convert Format</button>
             
             <div class="progress-container" id="conv-progress">
               <div class="progress-header">
-                <span class="progress-title"><span class="progress-spinner"></span>Parsing layout grid...</span>
+                <span class="progress-title"><span class="progress-spinner"></span>Converting...</span>
                 <span class="progress-value" id="conv-progress-percent">0%</span>
               </div>
               <div class="progress-bar-bg"><div class="progress-bar-fill" id="conv-progress-bar"></div></div>
@@ -525,13 +877,45 @@
 
     <!-- Footer -->
     <footer>
-      <p>CEC IDT ( Shubham Pisal ) runs entirely in your local browser sandbox. No file data is uploaded to remote servers.</p>
+      <p>CEC IDT Automation Tool runs entirely in your local browser sandbox. No file data is uploaded to remote servers.</p>
     </footer>
+  </div>
+
+  <!-- Global Password Prompt Modal -->
+  <div class="modal-overlay" id="global-password-modal">
+    <div class="modal-container">
+      <h3 class="modal-title">Password Required</h3>
+      <p class="modal-body">This PDF file is password protected and encrypted. Please enter the password to open and process it locally.</p>
+      <div class="settings-group">
+        <input type="password" id="global-pdf-password" class="settings-input" placeholder="Password...">
+      </div>
+      <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+        <button class="action-btn" id="btn-global-password-submit" style="flex: 1; background: linear-gradient(135deg, var(--primary) 0%, rgba(139, 92, 246, 0.8) 100%);">Unlock File</button>
+        <button class="action-btn secondary-btn" id="btn-global-password-cancel" style="flex: 1;">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Visual Editor Signature Pad Modal -->
+  <div class="modal-overlay" id="editor-sig-modal">
+    <div class="modal-container" style="max-width: 450px;">
+      <button class="modal-close" id="btn-editor-sig-close">
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+      <h3 class="modal-title">Draw Your Signature</h3>
+      <p class="modal-body" style="margin-bottom: 1rem;">Use your finger, stylus, or mouse to sign in the box below.</p>
+      <div style="border: 2px dashed rgba(255,255,255,0.15); border-radius: 12px; background: rgba(0,0,0,0.4); overflow: hidden; height: 180px; position: relative;">
+        <canvas id="signature-pad-canvas" style="display: block; width: 100%; height: 100%; cursor: crosshair;"></canvas>
+      </div>
+      <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+        <button class="action-btn" id="btn-editor-sig-save" style="flex: 1; background: linear-gradient(135deg, var(--secondary) 0%, #0891b2 100%);">Insert Signature</button>
+        <button class="action-btn secondary-btn" id="btn-editor-sig-clear" style="flex: 1;">Clear Canvas</button>
+      </div>
+    </div>
   </div>
 
   <!-- JavaScript application controllers -->
   <script src="pdf-tools.js"></script>
-  <script src="excel-tools.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -262,15 +262,15 @@ async function compressPDF(file, level = 'medium', onProgress = () => {}) {
   const numPages = pdf.numPages;
   const compressedPdf = await PDFLib.PDFDocument.create();
   
-  let dpiScale = 1.25; // standard
-  let quality = 0.7;
+  let dpiScale = 2.2; // standard (crisp rendering)
+  let quality = 0.82;
   
   if (level === 'high') {
-    dpiScale = 0.95;
-    quality = 0.5;
+    dpiScale = 1.6; // medium resolution
+    quality = 0.70;
   } else if (level === 'low') {
-    dpiScale = 1.6;
-    quality = 0.85;
+    dpiScale = 3.0; // ultra high resolution
+    quality = 0.90;
   }
   
   for (let pageNum = 1; pageNum <= numPages; pageNum++) {
@@ -375,4 +375,508 @@ async function saveEditedPDF(originalBytes, annotations, onProgress = () => {}) 
   onProgress(1.0, "Compile finished!");
   return editedBytes;
 }
+
+/**
+ * Encrypt a PDF document client-side using Web Crypto
+ */
+async function encryptPDFFile(pdfBytes, password) {
+  const encryptModule = await import('https://cdn.jsdelivr.net/npm/@pdfsmaller/pdf-encrypt/+esm');
+  const bytes = new Uint8Array(pdfBytes);
+  return await encryptModule.encryptPDF(bytes, password);
+}
+
+/**
+ * Decrypt a PDF document client-side using Web Crypto
+ */
+async function decryptPDFFile(pdfBytes, password) {
+  const decryptModule = await import('https://cdn.jsdelivr.net/npm/@pdfsmaller/pdf-decrypt/+esm');
+  const bytes = new Uint8Array(pdfBytes);
+  return await decryptModule.decryptPDF(bytes, password);
+}
+
+/**
+ * Check if a PDF is encrypted
+ */
+async function checkIsPDFEncrypted(pdfBytes) {
+  const decryptModule = await import('https://cdn.jsdelivr.net/npm/@pdfsmaller/pdf-decrypt/+esm');
+  const bytes = new Uint8Array(pdfBytes);
+  const info = await decryptModule.isEncrypted(bytes);
+  return info.encrypted;
+}
+
+/**
+ * Extract specific page ranges into a new PDF
+ */
+async function extractPDFPages(file, rangeStr) {
+  const fileBytes = await fileToArrayBuffer(file);
+  const srcDoc = await PDFLib.PDFDocument.load(fileBytes);
+  const totalPages = srcDoc.getPageCount();
+  
+  const pageIndices = parsePageRange(rangeStr, totalPages);
+  if (pageIndices.length === 0) {
+    throw new Error("No valid pages selected.");
+  }
+  
+  const newDoc = await PDFLib.PDFDocument.create();
+  const copiedPages = await newDoc.copyPages(srcDoc, pageIndices);
+  copiedPages.forEach(p => newDoc.addPage(p));
+  
+  return await newDoc.save();
+}
+
+/**
+ * Split all pages of a PDF into individual files wrapped in a ZIP
+ */
+async function splitPDFIntoZIP(file, onProgress = () => {}) {
+  if (typeof JSZip === 'undefined') {
+    await loadScript('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+  }
+  
+  const fileBytes = await fileToArrayBuffer(file);
+  const srcDoc = await PDFLib.PDFDocument.load(fileBytes);
+  const totalPages = srcDoc.getPageCount();
+  
+  const zip = new JSZip();
+  const baseName = file.name.substring(0, file.name.lastIndexOf('.')) || file.name;
+  
+  for (let i = 0; i < totalPages; i++) {
+    onProgress(i / totalPages, `Extracting page ${i + 1} of ${totalPages}...`);
+    const singleDoc = await PDFLib.PDFDocument.create();
+    const [copiedPage] = await singleDoc.copyPages(srcDoc, [i]);
+    singleDoc.addPage(copiedPage);
+    const pdfBytes = await singleDoc.save();
+    zip.file(`${baseName}_page_${i + 1}.pdf`, pdfBytes);
+  }
+  
+  onProgress(0.95, "Compiling ZIP archive...");
+  const zipBlob = await zip.generateAsync({ type: 'blob' });
+  onProgress(1.0, "Splitting complete!");
+  return zipBlob;
+}
+
+/**
+ * Helper to parse ranges like "1, 3, 5-8"
+ */
+function parsePageRange(rangeStr, totalPages) {
+  const indices = [];
+  const parts = rangeStr.split(',');
+  for (let part of parts) {
+    part = part.trim();
+    if (!part) continue;
+    if (part.includes('-')) {
+      const [startStr, endStr] = part.split('-');
+      const start = parseInt(startStr.trim(), 10);
+      const end = parseInt(endStr.trim(), 10);
+      if (isNaN(start) || isNaN(end)) continue;
+      const s = Math.max(1, Math.min(start, totalPages)) - 1;
+      const e = Math.max(1, Math.min(end, totalPages)) - 1;
+      if (s <= e) {
+        for (let i = s; i <= e; i++) {
+          indices.push(i);
+        }
+      } else {
+        for (let i = s; i >= e; i--) {
+          indices.push(i);
+        }
+      }
+    } else {
+      const page = parseInt(part, 10);
+      if (isNaN(page)) continue;
+      const idx = Math.max(1, Math.min(page, totalPages)) - 1;
+      indices.push(idx);
+    }
+  }
+  return indices;
+}
+
+/**
+ * Rotate specific pages by degrees mapping
+ */
+async function rotatePDFPages(file, rotationMap, onProgress = () => {}) {
+  const fileBytes = await fileToArrayBuffer(file);
+  const pdfDoc = await PDFLib.PDFDocument.load(fileBytes);
+  const pages = pdfDoc.getPages();
+  
+  for (let i = 0; i < pages.length; i++) {
+    onProgress(0.1 + (i / pages.length) * 0.8, `Applying rotation map to page ${i+1}...`);
+    if (rotationMap[i] !== undefined && rotationMap[i] !== 0) {
+      const page = pages[i];
+      const currentRotation = page.getRotation().angle;
+      const newRotation = (currentRotation + rotationMap[i]) % 360;
+      page.setRotation(PDFLib.degrees(newRotation));
+    }
+  }
+  
+  onProgress(0.92, "Assembling rotated layers...");
+  return await pdfDoc.save();
+}
+
+/**
+ * Overlay text or image watermark stamps onto all PDF pages
+ */
+async function watermarkPDF(file, options = {}, onProgress = () => {}) {
+  const {
+    type = 'text',
+    text = 'CONFIDENTIAL',
+    fontSize = 60,
+    textColor = '#ef4444',
+    opacity = 0.3,
+    rotation = -45,
+    imageFile = null,
+    imageScale = 0.3,
+    position = 'center'
+  } = options;
+  
+  onProgress(0.1, "Loading PDF file buffer...");
+  const fileBytes = await fileToArrayBuffer(file);
+  const pdfDoc = await PDFLib.PDFDocument.load(fileBytes);
+  const pages = pdfDoc.getPages();
+  
+  let font = null;
+  let img = null;
+  let imgWidth = 0;
+  let imgHeight = 0;
+  
+  if (type === 'text') {
+    font = await pdfDoc.embedFont(PDFLib.StandardFonts.HelveticaBold);
+  } else if (type === 'image' && imageFile) {
+    onProgress(0.2, "Embedding image watermark...");
+    const imgBytes = await fileToArrayBuffer(imageFile);
+    const ext = imageFile.name.split('.').pop().toLowerCase();
+    if (ext === 'png') {
+      img = await pdfDoc.embedPng(imgBytes);
+    } else {
+      img = await pdfDoc.embedJpg(imgBytes);
+    }
+    imgWidth = img.width * imageScale;
+    imgHeight = img.height * imageScale;
+  }
+  
+  const hexToRgb = (hex) => {
+    const r = parseInt(hex.slice(1, 3), 16) / 255;
+    const g = parseInt(hex.slice(3, 5), 16) / 255;
+    const b = parseInt(hex.slice(5, 7), 16) / 255;
+    return PDFLib.rgb(r, g, b);
+  };
+  const colorObj = type === 'text' ? hexToRgb(textColor) : null;
+  
+  for (let i = 0; i < pages.length; i++) {
+    onProgress(0.3 + (i / pages.length) * 0.6, `Watermarking page ${i+1} of ${pages.length}...`);
+    const page = pages[i];
+    const { width, height } = page.getSize();
+    
+    if (type === 'text') {
+      const textWidth = font.widthOfTextAtSize(text, fontSize);
+      const textHeight = fontSize;
+      
+      let x = (width - textWidth) / 2;
+      let y = (height - textHeight) / 2;
+      
+      if (position === 'top') {
+        y = height - textHeight - 60;
+      } else if (position === 'bottom') {
+        y = 60;
+      }
+      
+      page.drawText(text, {
+        x,
+        y,
+        size: fontSize,
+        font,
+        color: colorObj,
+        opacity: opacity,
+        rotate: PDFLib.degrees(rotation),
+      });
+    } else if (type === 'image' && img) {
+      let x = (width - imgWidth) / 2;
+      let y = (height - imgHeight) / 2;
+      
+      if (position === 'top') {
+        y = height - imgHeight - 60;
+      } else if (position === 'bottom') {
+        y = 60;
+      }
+      
+      page.drawImage(img, {
+        x,
+        y,
+        width: imgWidth,
+        height: imgHeight,
+        opacity: opacity
+      });
+    }
+  }
+  
+  onProgress(0.95, "Writing watermarked document...");
+  return await pdfDoc.save();
+}
+
+/**
+ * Dynamic script loader utility
+ */
+function loadScript(url) {
+  return new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = url;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error(`Failed to load script: ${url}`));
+    document.head.appendChild(script);
+  });
+}
+
+/**
+ * Parse text items from a PDF using pdf.js
+ */
+async function extractTextFromPDF(arrayBuffer, onProgress) {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const numPages = pdf.numPages;
+  let textLines = [];
+  
+  for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+    onProgress(0.1 + (pageNum / numPages) * 0.7, `Parsing text page ${pageNum} of ${numPages}...`);
+    const page = await pdf.getPage(pageNum);
+    const textContent = await page.getTextContent();
+    
+    const items = textContent.items.map(item => ({
+      str: item.str,
+      x: item.transform[4],
+      y: item.transform[5],
+      height: item.height || 10
+    }));
+    
+    const threshold = 8;
+    let lines = [];
+    items.forEach(item => {
+      let added = false;
+      for (let line of lines) {
+        if (Math.abs(line.y - item.y) < threshold) {
+          line.items.push(item);
+          added = true;
+          break;
+        }
+      }
+      if (!added) {
+        lines.push({ y: item.y, items: [item] });
+      }
+    });
+    
+    lines.sort((a, b) => b.y - a.y);
+    lines.forEach(line => {
+      line.items.sort((a, b) => a.x - b.x);
+      const lineStr = line.items.map(it => it.str).join(' ');
+      if (lineStr.trim()) {
+        textLines.push(lineStr);
+      }
+    });
+    textLines.push("--- PAGE BREAK ---");
+  }
+  return textLines;
+}
+
+/**
+ * Convert PDF to editable Word document (DOCX) client-side
+ */
+async function pdfToWord(file, mode = 'layout', onProgress = () => {}) {
+  const arrayBuffer = await fileToArrayBuffer(file);
+  
+  if (mode === 'text') {
+    onProgress(0.1, "Parsing document text...");
+    const textLines = await extractTextFromPDF(arrayBuffer, onProgress);
+    
+    onProgress(0.85, "Creating Word structure...");
+    const docChildren = [];
+    
+    textLines.forEach(line => {
+      if (line === "--- PAGE BREAK ---") {
+        docChildren.push(new docx.Paragraph({
+          children: [new docx.PageBreak()]
+        }));
+      } else {
+        docChildren.push(new docx.Paragraph({
+          children: [
+            new docx.TextRun({
+              text: line,
+              font: "Arial",
+              size: 24
+            })
+          ],
+          spacing: { after: 120 }
+        }));
+      }
+    });
+    
+    const doc = new docx.Document({
+      sections: [{
+        children: docChildren
+      }]
+    });
+    
+    onProgress(0.95, "Assembling DOCX file stream...");
+    return await docx.Packer.toBlob(doc);
+  } else {
+    onProgress(0.1, "Reading PDF document structure...");
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+    const numPages = pdf.numPages;
+    const docChildren = [];
+    
+    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+      onProgress(0.1 + ((pageNum - 1) / numPages) * 0.8, `Rendering page ${pageNum} of ${numPages}...`);
+      const page = await pdf.getPage(pageNum);
+      const scale = 3.5;
+      const viewport = page.getViewport({ scale });
+      
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const context = canvas.getContext('2d');
+      
+      await page.render({
+        canvasContext: context,
+        viewport: viewport
+      }).promise;
+      
+      const imgDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+      const imgBuffer = await (await fetch(imgDataUrl)).arrayBuffer();
+      
+      docChildren.push(
+        new docx.Paragraph({
+          children: [
+            new docx.ImageRun({
+              data: imgBuffer,
+              transformation: {
+                width: 595.27 - 72,
+                height: 841.89 - 72
+              }
+            })
+          ],
+          alignment: docx.AlignmentType.CENTER
+        })
+      );
+      
+      if (pageNum < numPages) {
+        docChildren.push(new docx.Paragraph({
+          children: [new docx.PageBreak()]
+        }));
+      }
+    }
+    
+    onProgress(0.95, "Compiling final Word layout...");
+    const doc = new docx.Document({
+      sections: [{
+        properties: {
+          page: {
+            size: {
+              width: docx.convertInchesToTwip(8.27),
+              height: docx.convertInchesToTwip(11.69)
+            },
+            margin: {
+              top: docx.convertInchesToTwip(0.5),
+              bottom: docx.convertInchesToTwip(0.5),
+              left: docx.convertInchesToTwip(0.5),
+              right: docx.convertInchesToTwip(0.5)
+            }
+          }
+        },
+        children: docChildren
+      }]
+    });
+    
+    return await docx.Packer.toBlob(doc);
+  }
+}
+
+/**
+ * Convert PDF pages to full-bleed PowerPoint slides (PPTX) client-side
+ */
+async function pdfToPPTX(file, outputName = "Presentation.pptx", onProgress = () => {}) {
+  onProgress(0.05, "Reading PDF bytes...");
+  const arrayBuffer = await fileToArrayBuffer(file);
+  
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
+  const pdf = await loadingTask.promise;
+  const numPages = pdf.numPages;
+  
+  const pptx = new PptxGenJS();
+  pptx.layout = 'LAYOUT_WIDE';
+  
+  for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+    onProgress(0.1 + ((pageNum - 1) / numPages) * 0.8, `Rendering slide ${pageNum} of ${numPages}...`);
+    const page = await pdf.getPage(pageNum);
+    
+    const scale = 3.5;
+    const viewport = page.getViewport({ scale });
+    
+    const canvas = document.createElement('canvas');
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const context = canvas.getContext('2d');
+    
+    await page.render({
+      canvasContext: context,
+      viewport: viewport
+    }).promise;
+    
+    const jpegUrl = canvas.toDataURL('image/jpeg', 0.90);
+    
+    const slide = pptx.addSlide();
+    slide.addImage({
+      data: jpegUrl,
+      x: 0,
+      y: 0,
+      w: '100%',
+      h: '100%'
+    });
+  }
+  
+  onProgress(0.95, "Compiling PPTX presentation...");
+  await pptx.writeFile({ fileName: outputName });
+  onProgress(1.0, "Conversion complete!");
+}
+
+/**
+ * Convert Word Document (DOCX) to PDF client-side
+ */
+async function wordToPDF(file, outputName = "Document.pdf", onProgress = () => {}) {
+  onProgress(0.1, "Reading DOCX file buffer...");
+  const arrayBuffer = await fileToArrayBuffer(file);
+  
+  onProgress(0.3, "Parsing Word contents...");
+  const result = await mammoth.convertToHtml({ arrayBuffer: arrayBuffer });
+  const htmlContent = result.value;
+  
+  onProgress(0.65, "Rendering print layout...");
+  const printDiv = document.createElement('div');
+  printDiv.id = 'temp-word-print-element';
+  printDiv.style.position = 'absolute';
+  printDiv.style.left = '-9999px';
+  printDiv.style.top = '-9999px';
+  printDiv.style.width = '800px';
+  printDiv.style.padding = '40px';
+  printDiv.style.color = '#000000';
+  printDiv.style.background = '#ffffff';
+  printDiv.style.fontFamily = 'Calibri, Arial, sans-serif';
+  printDiv.style.lineHeight = '1.6';
+  printDiv.innerHTML = htmlContent;
+  
+  document.body.appendChild(printDiv);
+  
+  onProgress(0.8, "Compiling PDF pages...");
+  
+  const opt = {
+    margin: 12,
+    filename: outputName,
+    image: { type: 'jpeg', quality: 0.98 },
+    html2canvas: { scale: 4, useCORS: true, logging: false },
+    jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+  };
+  
+  await html2pdf().from(printDiv).set(opt).save();
+  
+  document.body.removeChild(printDiv);
+  onProgress(1.0, "Conversion finished!");
+}
+
 
