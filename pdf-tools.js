@@ -398,10 +398,17 @@ async function decryptPDFFile(pdfBytes, password) {
  * Check if a PDF is encrypted
  */
 async function checkIsPDFEncrypted(pdfBytes) {
-  const decryptModule = await import('https://cdn.jsdelivr.net/npm/@pdfsmaller/pdf-decrypt/+esm');
-  const bytes = new Uint8Array(pdfBytes);
-  const info = await decryptModule.isEncrypted(bytes);
-  return info.encrypted;
+  try {
+    const bytes = new Uint8Array(pdfBytes);
+    await PDFLib.PDFDocument.load(bytes);
+    return false;
+  } catch (err) {
+    const msg = err.message.toLowerCase();
+    if (msg.includes('encrypt') || msg.includes('password') || msg.includes('decrypt') || msg.includes('unsupported')) {
+      return true;
+    }
+    return false;
+  }
 }
 
 /**

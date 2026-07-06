@@ -146,7 +146,7 @@ function initMergerTab() {
           });
           renderQueue();
         } catch (err) {
-          console.warn(err.message);
+          alert(`Could not add file "${file.name}": ${err.message}`);
         }
       }
     }
