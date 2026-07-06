@@ -381,6 +381,10 @@ function initImagesTab() {
   });
 
   dropzone.addEventListener('click', () => fileInput.click());
+  const btnBrowseJpg = document.getElementById('btn-browse-jpg');
+  if (btnBrowseJpg) {
+    btnBrowseJpg.addEventListener('click', () => fileInput.click());
+  }
 
   fileInput.addEventListener('change', (e) => {
     handleImages(e.target.files);
@@ -584,6 +588,10 @@ function initResizerTab() {
   const btnDownload = document.getElementById('btn-download-resize');
 
   dropzone.addEventListener('click', () => fileInput.click());
+  const btnBrowseResize = document.getElementById('btn-browse-resize');
+  if (btnBrowseResize) {
+    btnBrowseResize.addEventListener('click', () => fileInput.click());
+  }
 
   fileInput.addEventListener('change', async (e) => {
     if (e.target.files.length > 0) {
@@ -808,6 +816,10 @@ function initSecurityTab() {
   const btnDownload = document.getElementById('btn-download-security');
   
   dropzone.addEventListener('click', () => fileInput.click());
+  const btnBrowseSplit = document.getElementById('btn-browse-split');
+  if (btnBrowseSplit) {
+    btnBrowseSplit.addEventListener('click', () => fileInput.click());
+  }
   
   fileInput.addEventListener('change', (e) => {
     if (e.target.files.length > 0) {
@@ -997,6 +1009,10 @@ function initSplitTab() {
   const btnDownload = document.getElementById('btn-download-split');
   
   dropzone.addEventListener('click', () => fileInput.click());
+  const btnBrowseWatermark = document.getElementById('btn-browse-watermark');
+  if (btnBrowseWatermark) {
+    btnBrowseWatermark.addEventListener('click', () => fileInput.click());
+  }
   
   fileInput.addEventListener('change', async (e) => {
     if (e.target.files.length > 0) {
@@ -1246,6 +1262,10 @@ function initWatermarkTab() {
   const btnDownload = document.getElementById('btn-download-watermark');
   
   dropzone.addEventListener('click', () => fileInput.click());
+  const btnBrowseEdit = document.getElementById('btn-browse-edit');
+  if (btnBrowseEdit) {
+    btnBrowseEdit.addEventListener('click', () => fileInput.click());
+  }
   
   fileInput.addEventListener('change', async (e) => {
     if (e.target.files.length > 0) {
@@ -1441,6 +1461,10 @@ function initEditTab() {
   const btnDownload = document.getElementById('btn-download-edit');
   
   dropzone.addEventListener('click', () => fileInput.click());
+  const btnBrowseCompress = document.getElementById('btn-browse-compress');
+  if (btnBrowseCompress) {
+    btnBrowseCompress.addEventListener('click', () => fileInput.click());
+  }
   
   fileInput.addEventListener('change', async (e) => {
     if (e.target.files.length > 0) {
@@ -1882,6 +1906,10 @@ function initCompressTab() {
   const btnDownload = document.getElementById('btn-download-compress');
 
   dropzone.addEventListener('click', () => fileInput.click());
+  const btnBrowseSecurity = document.getElementById('btn-browse-security');
+  if (btnBrowseSecurity) {
+    btnBrowseSecurity.addEventListener('click', () => fileInput.click());
+  }
 
   fileInput.addEventListener('change', async (e) => {
     if (e.target.files.length > 0) {
@@ -2094,6 +2122,10 @@ function initConvertersTab() {
   btnTypePdf.addEventListener('click', () => setConvType('word-to-pdf'));
 
   dropzone.addEventListener('click', () => fileInput.click());
+  const btnBrowseConv = document.getElementById('btn-browse-conv');
+  if (btnBrowseConv) {
+    btnBrowseConv.addEventListener('click', () => fileInput.click());
+  }
 
   fileInput.addEventListener('change', async (e) => {
     if (e.target.files.length > 0) {
