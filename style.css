@@ -1196,8 +1196,8 @@ footer a:hover {
   display: block;
 }
 
-/* Rotator & Splitter Grid layouts */
-.rotate-grid, .split-grid {
+/* Splitter Grid layout */
+.split-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
   gap: 1.25rem;
@@ -1210,7 +1210,7 @@ footer a:hover {
   border: 1px solid var(--panel-border);
 }
 
-.rotate-card, .split-card {
+.split-card {
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.06);
   border-radius: 10px;
@@ -1220,15 +1220,12 @@ footer a:hover {
   transition: var(--transition-fast);
   user-select: none;
   -webkit-user-select: none;
+  cursor: pointer;
 }
 
-.rotate-card:hover, .split-card:hover {
+.split-card:hover {
   border-color: rgba(139, 92, 246, 0.4);
   background: rgba(255, 255, 255, 0.04);
-}
-
-.split-card {
-  cursor: pointer;
 }
 
 .split-card.selected {
@@ -1237,7 +1234,7 @@ footer a:hover {
   box-shadow: 0 0 10px rgba(16, 185, 129, 0.15);
 }
 
-.rotate-card canvas, .split-card canvas {
+.split-card canvas {
   max-width: 100%;
   height: auto;
   border-radius: 6px;
@@ -1248,36 +1245,11 @@ footer a:hover {
   margin: 0 auto;
 }
 
-.rotate-card .page-num, .split-card .page-num {
+.split-card .page-num {
   font-size: 0.8rem;
   color: var(--text-muted);
   margin-top: 0.65rem;
   font-weight: 500;
-}
-
-.rotate-card .rotate-actions {
-  display: flex;
-  justify-content: center;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-}
-
-.rotate-card .rotate-btn {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: var(--text-main);
-  padding: 0.3rem 0.6rem;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.75rem;
-  font-weight: 500;
-  transition: var(--transition-fast);
-}
-
-.rotate-card .rotate-btn:hover {
-  background: var(--primary);
-  border-color: var(--primary);
-  box-shadow: 0 0 8px var(--primary-glow);
 }
 
 .split-card .checkbox-indicator {

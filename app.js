@@ -6,7 +6,6 @@ document.addEventListener('DOMContentLoaded', () => {
   initImagesTab();
   initResizerTab();
   initSplitTab();
-  initRotateTab();
   initWatermarkTab();
   initEditTab();
   initCompressTab();
@@ -695,7 +694,11 @@ function initResizerTab() {
       link.href = resizedPdfUrl;
       link.download = outputNameInput.value || 'Resized_Document.pdf';
       link.click();
-//**
+    }
+  });
+}
+
+/**
  * Intercepts a PDF upload. If it is encrypted, prompts for password,
  * decrypts it client-side using Web Crypto, and returns the unlocked file.
  */
@@ -1175,213 +1178,6 @@ function initSplitTab() {
       const link = document.createElement('a');
       link.href = splitResultUrl;
       link.download = outputNameInput.value || (isZipOutput ? 'Split_Pages.zip' : 'Split_Document.pdf');
-      link.click();
-    }
-  });
-}
-
-/* ==========================================================================
-   6. PDF PAGE ROTATOR TAB LOGIC
-   ========================================================================== */
-function initRotateTab() {
-  let rotateFile = null;
-  let rotateResultBytes = null;
-  let rotateResultUrl = null;
-  let totalPages = 0;
-  let rotationsMap = {};
-  
-  const dropzone = document.getElementById('rotate-dropzone');
-  const fileInput = document.getElementById('rotate-file-input');
-  const infoBlock = document.getElementById('rotate-file-info');
-  const fileNameLabel = document.getElementById('rotate-file-name');
-  const fileSizeLabel = document.getElementById('rotate-file-size');
-  const filePagesLabel = document.getElementById('rotate-file-pages');
-  const btnClear = document.getElementById('btn-clear-rotate');
-  const btnRun = document.getElementById('btn-run-rotate');
-  const rotateGrid = document.getElementById('rotate-grid');
-  const outputNameInput = document.getElementById('rotate-output-name');
-  
-  const btnAllCw = document.getElementById('btn-rotate-all-cw');
-  const btnAllCcw = document.getElementById('btn-rotate-all-ccw');
-  
-  const progressContainer = document.getElementById('rotate-progress');
-  const progressBar = document.getElementById('rotate-progress-bar');
-  const progressPercent = document.getElementById('rotate-progress-percent');
-  const progressMsg = document.getElementById('rotate-progress-msg');
-  
-  const successCard = document.getElementById('rotate-success');
-  const btnDownload = document.getElementById('btn-download-rotate');
-  
-  dropzone.addEventListener('click', () => fileInput.click());
-  
-  fileInput.addEventListener('change', async (e) => {
-    if (e.target.files.length > 0) {
-      try {
-        const processedFile = await getOrDecryptFile(e.target.files[0]);
-        loadFile(processedFile);
-      } catch (err) {
-        console.warn(err.message);
-      }
-    }
-    fileInput.value = '';
-  });
-  
-  dropzone.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    dropzone.classList.add('dragover');
-  });
-  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
-  dropzone.addEventListener('drop', async (e) => {
-    e.preventDefault();
-    dropzone.classList.remove('dragover');
-    if (e.dataTransfer.files.length > 0) {
-      try {
-        const processedFile = await getOrDecryptFile(e.dataTransfer.files[0]);
-        loadFile(processedFile);
-      } catch (err) {
-        console.warn(err.message);
-      }
-    }
-  });
-  
-  async function loadFile(file) {
-    rotateFile = file;
-    dropzone.style.display = 'none';
-    infoBlock.style.display = 'block';
-    btnRun.disabled = false;
-    successCard.style.display = 'none';
-    rotationsMap = {};
-    
-    fileNameLabel.textContent = file.name;
-    fileSizeLabel.textContent = formatBytes(file.size);
-    filePagesLabel.textContent = "Loading pages...";
-    outputNameInput.value = file.name.replace('.pdf', '_Rotated.pdf');
-    
-    rotateGrid.style.display = 'grid';
-    rotateGrid.innerHTML = '<span style="color: var(--text-muted); padding: 1.5rem;">Drawing thumbnails...</span>';
-    
-    try {
-      const arrayBuffer = await fileToArrayBuffer(file);
-      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      totalPages = pdf.numPages;
-      filePagesLabel.textContent = `Pages: ${totalPages}`;
-      
-      rotateGrid.innerHTML = '';
-      
-      for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
-        const pageIndex = pageNum - 1;
-        rotationsMap[pageIndex] = 0;
-        
-        const page = await pdf.getPage(pageNum);
-        const viewport = page.getViewport({ scale: 0.22 });
-        
-        const card = document.createElement('div');
-        card.className = 'rotate-card';
-        card.dataset.page = pageIndex;
-        
-        const canvas = document.createElement('canvas');
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        const context = canvas.getContext('2d');
-        
-        const label = document.createElement('div');
-        label.className = 'page-num';
-        label.textContent = `Page ${pageNum}`;
-        
-        const actions = document.createElement('div');
-        actions.className = 'rotate-actions';
-        
-        const rotateBtn = document.createElement('button');
-        rotateBtn.className = 'rotate-btn';
-        rotateBtn.textContent = '↻ +90°';
-        
-        actions.appendChild(rotateBtn);
-        card.appendChild(canvas);
-        card.appendChild(label);
-        card.appendChild(actions);
-        rotateGrid.appendChild(card);
-        
-        page.render({ canvasContext: context, viewport: viewport });
-        
-        rotateBtn.addEventListener('click', (e) => {
-          e.stopPropagation();
-          rotationsMap[pageIndex] = (rotationsMap[pageIndex] + 90) % 360;
-          canvas.style.transform = `rotate(${rotationsMap[pageIndex]}deg)`;
-        });
-      }
-    } catch (err) {
-      console.error(err);
-      filePagesLabel.textContent = "Pages: Error";
-      rotateGrid.innerHTML = '<span style="color: var(--error); padding: 1.5rem;">Could not load page grid.</span>';
-    }
-  }
-  
-  btnAllCw.addEventListener('click', () => {
-    if (!rotateFile) return;
-    for (let i = 0; i < totalPages; i++) {
-      rotationsMap[i] = (rotationsMap[i] + 90) % 360;
-    }
-    document.querySelectorAll('.rotate-card canvas').forEach((canvas, idx) => {
-      canvas.style.transform = `rotate(${rotationsMap[idx]}deg)`;
-    });
-  });
-  
-  btnAllCcw.addEventListener('click', () => {
-    if (!rotateFile) return;
-    for (let i = 0; i < totalPages; i++) {
-      rotationsMap[i] = (rotationsMap[i] + 270) % 360;
-    }
-    document.querySelectorAll('.rotate-card canvas').forEach((canvas, idx) => {
-      canvas.style.transform = `rotate(${rotationsMap[idx]}deg)`;
-    });
-  });
-  
-  btnClear.addEventListener('click', resetRotateTab);
-  
-  function resetRotateTab() {
-    rotateFile = null;
-    dropzone.style.display = 'flex';
-    infoBlock.style.display = 'none';
-    rotateGrid.style.display = 'none';
-    btnRun.disabled = true;
-    successCard.style.display = 'none';
-    rotationsMap = {};
-  }
-  
-  btnRun.addEventListener('click', async () => {
-    btnRun.disabled = true;
-    btnClear.disabled = true;
-    progressContainer.style.display = 'block';
-    successCard.style.display = 'none';
-    
-    try {
-      rotateResultBytes = await rotatePDFPages(rotateFile, rotationsMap, (progress, message) => {
-        progressBar.style.width = `${progress * 100}%`;
-        progressPercent.textContent = `${Math.round(progress * 100)}%`;
-        progressMsg.textContent = message;
-      });
-      
-      if (rotateResultUrl) URL.revokeObjectURL(rotateResultUrl);
-      const blob = new Blob([rotateResultBytes], { type: 'application/pdf' });
-      rotateResultUrl = URL.createObjectURL(blob);
-      
-      progressContainer.style.display = 'none';
-      successCard.style.display = 'flex';
-      btnClear.disabled = false;
-    } catch (err) {
-      alert(`Rotation failed: ${err.message}`);
-      progressContainer.style.display = 'none';
-      btnRun.disabled = false;
-      btnClear.disabled = false;
-    }
-  });
-  
-  btnDownload.addEventListener('click', () => {
-    if (rotateResultUrl) {
-      const link = document.createElement('a');
-      link.href = rotateResultUrl;
-      link.download = outputNameInput.value || 'Rotated_Document.pdf';
       link.click();
     }
   });

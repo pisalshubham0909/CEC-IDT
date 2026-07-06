@@ -25,7 +25,7 @@ def run_server():
         try:
             httpd = ThreadingHTTPServer(("", PORT), CORSRequestHandler)
             print(f"\n=======================================================")
-            print(f"  PDF & Excel Tool Suite Server is running!")
+            print(f"  CEC IDT Automation Tool Server is running!")
             print(f"  URL: http://localhost:{PORT}")
             print(f"  Press Ctrl+C to stop the server.")
             print(f"=======================================================\n")

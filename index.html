@@ -37,7 +37,6 @@
         <button class="nav-tab" data-target="jpg-section">Images to PDF</button>
         <button class="nav-tab" data-target="resize-section">Resize</button>
         <button class="nav-tab" data-target="split-section">Split</button>
-        <button class="nav-tab" data-target="rotate-section">Rotate Pages</button>
         <button class="nav-tab" data-target="watermark-section">Watermark</button>
         <button class="nav-tab" data-target="edit-section">Edit &amp; Sign</button>
         <button class="nav-tab" data-target="compress-section">Compress</button>
@@ -97,15 +96,6 @@
             <div class="tool-action">Get Started <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div>
           </div>
 
-          <!-- Card: Rotate Pages (NEW) -->
-          <div class="tool-card rotator" data-target="rotate-section" style="border-color: rgba(139, 92, 246, 0.15);">
-            <div class="tool-icon-wrapper" style="stroke: var(--primary)">
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-            </div>
-            <h2 class="tool-title">Rotate Pages</h2>
-            <p class="tool-desc">Rotate individual pages or the entire document clockwise or counter-clockwise with a visual grid.</p>
-            <div class="tool-action">Get Started <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg></div>
-          </div>
 
           <!-- Card: Watermark PDF (NEW) -->
           <div class="tool-card watermarker" data-target="watermark-section" style="border-color: rgba(16, 185, 129, 0.15);">
@@ -423,65 +413,6 @@
         </div>
       </section>
 
-      <!-- ROTATE PDF PAGES SECTION -->
-      <section id="rotate-section" class="tool-section">
-        <div class="workspace-layout">
-          <div class="main-panel">
-            <h2 class="panel-title">
-              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
-              Rotate Pages Workspace
-            </h2>
-            <div class="dropzone" id="rotate-dropzone">
-              <div class="dropzone-icon" style="stroke: var(--primary)">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              </div>
-              <p class="dropzone-title">Drag &amp; drop the PDF file to rotate</p>
-              <input type="file" id="rotate-file-input" accept="application/pdf" style="display: none;">
-            </div>
-            
-            <div class="file-list-container" id="rotate-file-info" style="display: none;">
-              <div class="file-item">
-                <div class="file-thumbnail"><span class="file-thumbnail-icon" style="color: var(--primary)">PDF</span></div>
-                <div class="file-info">
-                  <div class="file-name" id="rotate-file-name">document.pdf</div>
-                  <div class="file-meta"><span id="rotate-file-size">0 KB</span><span id="rotate-file-pages">Pages: --</span></div>
-                </div>
-                <div class="file-actions">
-                  <button class="file-btn delete" id="btn-clear-rotate"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
-                </div>
-              </div>
-            </div>
-            <div class="rotate-grid" id="rotate-grid" style="display: none;"></div>
-          </div>
-          
-          <div class="sidebar-panel">
-            <h3 class="panel-title">Rotation Options</h3>
-            <div class="settings-group">
-              <label class="settings-label" for="rotate-output-name">Output Name</label>
-              <input type="text" id="rotate-output-name" class="settings-input" value="Rotated_Document.pdf">
-            </div>
-            <div class="spreadsheet-controls" style="margin-bottom: 1.5rem; flex-direction: column; gap: 0.5rem;">
-              <button class="ctrl-btn" id="btn-rotate-all-cw" style="width: 100%;">Rotate All Clockwise (+90°)</button>
-              <button class="ctrl-btn" id="btn-rotate-all-ccw" style="width: 100%;">Rotate All Counter-Cw (-90°)</button>
-            </div>
-            <button class="action-btn" id="btn-run-rotate" style="background: linear-gradient(135deg, var(--primary) 0%, rgba(139, 92, 246, 0.8) 100%);" disabled>Save Rotations</button>
-            
-            <div class="progress-container" id="rotate-progress">
-              <div class="progress-header">
-                <span class="progress-title"><span class="progress-spinner"></span>Applying rotations...</span>
-                <span class="progress-value" id="rotate-progress-percent">0%</span>
-              </div>
-              <div class="progress-bar-bg"><div class="progress-bar-fill" id="rotate-progress-bar"></div></div>
-              <div class="progress-msg" id="rotate-progress-msg">Rotating PDF pages...</div>
-            </div>
-            <div class="success-card" id="rotate-success" style="display: none;">
-              <div class="success-icon" style="stroke: var(--primary); color: var(--primary); background: rgba(139, 92, 246, 0.1)"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
-              <div class="success-title">Rotated PDF Ready!</div>
-              <button class="action-btn secondary-btn" id="btn-download-rotate">Download PDF</button>
-            </div>
-          </div>
-        </div>
-      </section>
 
       <!-- WATERMARK PDF SECTION -->
       <section id="watermark-section" class="tool-section">

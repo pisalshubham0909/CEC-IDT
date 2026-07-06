@@ -490,28 +490,6 @@ function parsePageRange(rangeStr, totalPages) {
 }
 
 /**
- * Rotate specific pages by degrees mapping
- */
-async function rotatePDFPages(file, rotationMap, onProgress = () => {}) {
-  const fileBytes = await fileToArrayBuffer(file);
-  const pdfDoc = await PDFLib.PDFDocument.load(fileBytes);
-  const pages = pdfDoc.getPages();
-  
-  for (let i = 0; i < pages.length; i++) {
-    onProgress(0.1 + (i / pages.length) * 0.8, `Applying rotation map to page ${i+1}...`);
-    if (rotationMap[i] !== undefined && rotationMap[i] !== 0) {
-      const page = pages[i];
-      const currentRotation = page.getRotation().angle;
-      const newRotation = (currentRotation + rotationMap[i]) % 360;
-      page.setRotation(PDFLib.degrees(newRotation));
-    }
-  }
-  
-  onProgress(0.92, "Assembling rotated layers...");
-  return await pdfDoc.save();
-}
-
-/**
  * Overlay text or image watermark stamps onto all PDF pages
  */
 async function watermarkPDF(file, options = {}, onProgress = () => {}) {
