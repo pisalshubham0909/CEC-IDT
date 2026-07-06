@@ -102,6 +102,7 @@ function initMergerTab() {
   const progressPercent = document.getElementById('merge-progress-percent');
   const progressMsg = document.getElementById('merge-progress-msg');
   const successCard = document.getElementById('merge-success');
+  const btnDownload = document.getElementById('btn-download-merge');
   const outputNameInput = document.getElementById('merge-output-name');
   const btnClearMerge = document.getElementById('btn-clear-merge');
   const btnBrowseMerge = document.getElementById('btn-browse-merge');
