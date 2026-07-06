@@ -104,9 +104,13 @@ function initMergerTab() {
   const successCard = document.getElementById('merge-success');
   const outputNameInput = document.getElementById('merge-output-name');
   const btnClearMerge = document.getElementById('btn-clear-merge');
+  const btnBrowseMerge = document.getElementById('btn-browse-merge');
 
   // Trigger file browser on click
   dropzone.addEventListener('click', () => fileInput.click());
+  if (btnBrowseMerge) {
+    btnBrowseMerge.addEventListener('click', () => fileInput.click());
+  }
 
   // Input change
   fileInput.addEventListener('change', (e) => {
