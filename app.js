@@ -786,14 +786,9 @@ function initSecurityTab() {
   
   dropzone.addEventListener('click', () => fileInput.click());
   
-  fileInput.addEventListener('change', async (e) => {
+  fileInput.addEventListener('change', (e) => {
     if (e.target.files.length > 0) {
-      try {
-        const processedFile = await getOrDecryptFile(e.target.files[0]);
-        loadFile(processedFile);
-      } catch (err) {
-        console.warn(err.message);
-      }
+      loadFile(e.target.files[0]);
     }
     fileInput.value = '';
   });
@@ -803,16 +798,11 @@ function initSecurityTab() {
     dropzone.classList.add('dragover');
   });
   dropzone.addEventListener('dragleave', () => dropzone.classList.remove('dragover'));
-  dropzone.addEventListener('drop', async (e) => {
+  dropzone.addEventListener('drop', (e) => {
     e.preventDefault();
     dropzone.classList.remove('dragover');
     if (e.dataTransfer.files.length > 0) {
-      try {
-        const processedFile = await getOrDecryptFile(e.dataTransfer.files[0]);
-        loadFile(processedFile);
-      } catch (err) {
-        console.warn(err.message);
-      }
+      loadFile(e.dataTransfer.files[0]);
     }
   });
   
@@ -910,7 +900,13 @@ function initSecurityTab() {
         progressBar.style.width = "40%";
         progressPercent.textContent = "40%";
         
-        securedPdfBytes = await decryptPDFFile(fileBytes, password);
+        const isEncrypted = await checkIsPDFEncrypted(fileBytes);
+        if (!isEncrypted) {
+          securedPdfBytes = new Uint8Array(fileBytes);
+          progressMsg.textContent = "PDF is not encrypted. Unlocked file saved.";
+        } else {
+          securedPdfBytes = await decryptPDFFile(fileBytes, password);
+        }
         
         progressBar.style.width = "100%";
         progressPercent.textContent = "100%";
