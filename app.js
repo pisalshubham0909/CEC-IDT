@@ -102,8 +102,8 @@ function initMergerTab() {
   const progressPercent = document.getElementById('merge-progress-percent');
   const progressMsg = document.getElementById('merge-progress-msg');
   const successCard = document.getElementById('merge-success');
-  const btnDownload = document.getElementById('btn-download-merge');
   const outputNameInput = document.getElementById('merge-output-name');
+  const btnClearMerge = document.getElementById('btn-clear-merge');
 
   // Trigger file browser on click
   dropzone.addEventListener('click', () => fileInput.click());
@@ -134,7 +134,8 @@ function initMergerTab() {
 
   async function handleFiles(files) {
     successCard.style.display = 'none';
-    for (const file of files) {
+    const fileList = Array.from(files);
+    for (const file of fileList) {
       const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
       if (isPdf) {
         try {
@@ -154,6 +155,7 @@ function initMergerTab() {
   function renderQueue() {
     fileListContainer.innerHTML = '';
     btnRun.disabled = mergeQueue.length < 2;
+    btnClearMerge.style.display = mergeQueue.length > 0 ? 'block' : 'none';
 
     mergeQueue.forEach((item, index) => {
       const itemEl = document.createElement('div');
@@ -164,9 +166,6 @@ function initMergerTab() {
       itemEl.dataset.id = item.id;
       itemEl.dataset.index = index;
 
-      const canvas = document.createElement('canvas');
-      canvas.className = 'thumbnail-canvas';
-      
       itemEl.innerHTML = `
         <div class="file-drag-handle">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></svg>
@@ -182,19 +181,43 @@ function initMergerTab() {
           </div>
         </div>
         <div class="file-actions">
-          <button class="file-btn" onclick="window.moveMergeItem(${index}, -1)" ${index === 0 ? 'disabled' : ''}>
+          <button class="file-btn move-up" ${index === 0 ? 'disabled' : ''}>
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="18 15 12 9 6 15"/></svg>
           </button>
-          <button class="file-btn" onclick="window.moveMergeItem(${index}, 1)" ${index === mergeQueue.length - 1 ? 'disabled' : ''}>
+          <button class="file-btn move-down" ${index === mergeQueue.length - 1 ? 'disabled' : ''}>
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
-          <button class="file-btn delete" onclick="window.deleteMergeItem('${item.id}')">
+          <button class="file-btn delete">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>
           </button>
         </div>
       `;
 
       fileListContainer.appendChild(itemEl);
+
+      // Dynamic event bindings
+      itemEl.querySelector('.file-btn.delete').addEventListener('click', () => {
+        mergeQueue = mergeQueue.filter(x => x.id !== item.id);
+        renderQueue();
+      });
+
+      itemEl.querySelector('.file-btn.move-up').addEventListener('click', () => {
+        if (index > 0) {
+          const temp = mergeQueue[index];
+          mergeQueue[index] = mergeQueue[index - 1];
+          mergeQueue[index - 1] = temp;
+          renderQueue();
+        }
+      });
+
+      itemEl.querySelector('.file-btn.move-down').addEventListener('click', () => {
+        if (index < mergeQueue.length - 1) {
+          const temp = mergeQueue[index];
+          mergeQueue[index] = mergeQueue[index + 1];
+          mergeQueue[index + 1] = temp;
+          renderQueue();
+        }
+      });
 
       // Async render pdf thumbnail
       renderPDFInfoAndThumbnail(item);
@@ -263,21 +286,16 @@ function initMergerTab() {
     }
   }
 
-  // Global functions attached to window for list operations
-  window.deleteMergeItem = (id) => {
-    mergeQueue = mergeQueue.filter(item => item.id !== id);
+  // Clear Merger queue list handler
+  btnClearMerge.addEventListener('click', () => {
+    mergeQueue = [];
     renderQueue();
-  };
-
-  window.moveMergeItem = (index, direction) => {
-    const targetIdx = index + direction;
-    if (targetIdx >= 0 && targetIdx < mergeQueue.length) {
-      const temp = mergeQueue[index];
-      mergeQueue[index] = mergeQueue[targetIdx];
-      mergeQueue[targetIdx] = temp;
-      renderQueue();
+    successCard.style.display = 'none';
+    if (mergedPdfUrl) {
+      URL.revokeObjectURL(mergedPdfUrl);
+      mergedPdfUrl = null;
     }
-  };
+  });
 
   // Run Merger
   btnRun.addEventListener('click', async () => {
@@ -386,7 +404,8 @@ function initImagesTab() {
     successCard.style.display = 'none';
     const allowed = ['image/jpeg', 'image/png', 'image/webp'];
     const allowedExts = ['jpg', 'jpeg', 'png', 'webp'];
-    for (const file of files) {
+    const fileList = Array.from(files);
+    for (const file of fileList) {
       const ext = file.name.split('.').pop().toLowerCase();
       if (allowed.includes(file.type) || allowedExts.includes(ext)) {
         imageQueue.push({
