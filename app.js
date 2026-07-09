@@ -817,9 +817,9 @@ function initSecurityTab() {
   const btnDownload = document.getElementById('btn-download-security');
   
   dropzone.addEventListener('click', () => fileInput.click());
-  const btnBrowseSplit = document.getElementById('btn-browse-split');
-  if (btnBrowseSplit) {
-    btnBrowseSplit.addEventListener('click', () => fileInput.click());
+  const btnBrowseSecurity = document.getElementById('btn-browse-security');
+  if (btnBrowseSecurity) {
+    btnBrowseSecurity.addEventListener('click', () => fileInput.click());
   }
   
   fileInput.addEventListener('change', (e) => {
@@ -1010,9 +1010,9 @@ function initSplitTab() {
   const btnDownload = document.getElementById('btn-download-split');
   
   dropzone.addEventListener('click', () => fileInput.click());
-  const btnBrowseWatermark = document.getElementById('btn-browse-watermark');
-  if (btnBrowseWatermark) {
-    btnBrowseWatermark.addEventListener('click', () => fileInput.click());
+  const btnBrowseSplit = document.getElementById('btn-browse-split');
+  if (btnBrowseSplit) {
+    btnBrowseSplit.addEventListener('click', () => fileInput.click());
   }
   
   fileInput.addEventListener('change', async (e) => {
@@ -1263,9 +1263,9 @@ function initWatermarkTab() {
   const btnDownload = document.getElementById('btn-download-watermark');
   
   dropzone.addEventListener('click', () => fileInput.click());
-  const btnBrowseEdit = document.getElementById('btn-browse-edit');
-  if (btnBrowseEdit) {
-    btnBrowseEdit.addEventListener('click', () => fileInput.click());
+  const btnBrowseWatermark = document.getElementById('btn-browse-watermark');
+  if (btnBrowseWatermark) {
+    btnBrowseWatermark.addEventListener('click', () => fileInput.click());
   }
   
   fileInput.addEventListener('change', async (e) => {
@@ -1462,9 +1462,9 @@ function initEditTab() {
   const btnDownload = document.getElementById('btn-download-edit');
   
   dropzone.addEventListener('click', () => fileInput.click());
-  const btnBrowseCompress = document.getElementById('btn-browse-compress');
-  if (btnBrowseCompress) {
-    btnBrowseCompress.addEventListener('click', () => fileInput.click());
+  const btnBrowseEdit = document.getElementById('btn-browse-edit');
+  if (btnBrowseEdit) {
+    btnBrowseEdit.addEventListener('click', () => fileInput.click());
   }
   
   fileInput.addEventListener('change', async (e) => {
@@ -1622,6 +1622,8 @@ function initEditTab() {
   
   btnAddDrawSig.addEventListener('click', () => {
     sigModal.classList.add('active');
+    sigPadCanvas.width = sigPadCanvas.offsetWidth || 400;
+    sigPadCanvas.height = sigPadCanvas.offsetHeight || 180;
     sigPadCtx.clearRect(0, 0, sigPadCanvas.width, sigPadCanvas.height);
     sigPadCtx.lineWidth = 3;
     sigPadCtx.lineCap = 'round';
@@ -1812,7 +1814,10 @@ function initEditTab() {
         
         const textNodes = overlay.querySelectorAll('.editor-text-node');
         textNodes.forEach(node => {
-          const cleanText = node.firstChild.textContent;
+          const clone = node.cloneNode(true);
+          const delBtn = clone.querySelector('.editor-node-delete-btn');
+          if (delBtn) delBtn.remove();
+          const cleanText = clone.textContent;
           if (cleanText.trim() === 'Type notes...' || !cleanText.trim()) return;
           
           annotations.push({
@@ -1907,9 +1912,9 @@ function initCompressTab() {
   const btnDownload = document.getElementById('btn-download-compress');
 
   dropzone.addEventListener('click', () => fileInput.click());
-  const btnBrowseSecurity = document.getElementById('btn-browse-security');
-  if (btnBrowseSecurity) {
-    btnBrowseSecurity.addEventListener('click', () => fileInput.click());
+  const btnBrowseCompress = document.getElementById('btn-browse-compress');
+  if (btnBrowseCompress) {
+    btnBrowseCompress.addEventListener('click', () => fileInput.click());
   }
 
   fileInput.addEventListener('change', async (e) => {
