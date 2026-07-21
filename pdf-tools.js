@@ -257,21 +257,50 @@ async function compressPDF(file, level = 'medium', onProgress = () => {}) {
   onProgress(0.05, "Reading document bytes...");
   const arrayBuffer = await fileToArrayBuffer(file);
   
+  // Try Python Backend API first (efficient & offline-safe)
+  try {
+    onProgress(0.15, "Uploading to local compression engine...");
+    const response = await fetch('/api/compress', {
+      method: 'POST',
+      headers: {
+        'X-Level': level
+      },
+      body: new Uint8Array(arrayBuffer)
+    });
+    if (response.ok) {
+      onProgress(0.9, "Receiving optimized PDF streams...");
+      const resBytes = new Uint8Array(await response.arrayBuffer());
+      onProgress(1.0, "Optimization complete!");
+      return resBytes;
+    } else {
+      console.warn("Backend API returned error, falling back to client-side compression:", await response.text());
+    }
+  } catch (err) {
+    console.warn("Backend compression API unavailable, using client-side fallback:", err);
+  }
+
+  // Client-side fallback (Downsamples images using Canvas to achieve real compression)
+  onProgress(0.1, "Initializing client-side rasterizing compressor...");
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
   const numPages = pdf.numPages;
   const compressedPdf = await PDFLib.PDFDocument.create();
   
-  let dpiScale = 2.2; // standard (crisp rendering)
-  let quality = 0.82;
+  // Adjusted DPI scales and quality to achieve ACTUAL compression on client-side
+  let dpiScale = 1.3; // medium (balanced)
+  let quality = 0.6;
   
   if (level === 'high') {
-    dpiScale = 1.6; // medium resolution
-    quality = 0.70;
+    dpiScale = 0.9; // high compression (smallest size)
+    quality = 0.45;
   } else if (level === 'low') {
-    dpiScale = 3.0; // ultra high resolution
-    quality = 0.90;
+    dpiScale = 1.8; // low compression (high quality)
+    quality = 0.75;
   }
+  
+  // Reuse a single canvas element to prevent browser memory leaks and tab crashes
+  const canvas = document.createElement('canvas');
+  const context = canvas.getContext('2d');
   
   for (let pageNum = 1; pageNum <= numPages; pageNum++) {
     onProgress(0.1 + ((pageNum - 1) / numPages) * 0.8, `Optimizing page ${pageNum} of ${numPages}...`);
@@ -279,20 +308,25 @@ async function compressPDF(file, level = 'medium', onProgress = () => {}) {
     const page = await pdf.getPage(pageNum);
     const viewport = page.getViewport({ scale: dpiScale });
     
-    const canvas = document.createElement('canvas');
     canvas.width = viewport.width;
     canvas.height = viewport.height;
-    const context = canvas.getContext('2d');
+    context.clearRect(0, 0, canvas.width, canvas.height);
     
     await page.render({
       canvasContext: context,
       viewport: viewport
     }).promise;
     
-    // Get JPEG image data
-    const dataUrl = canvas.toDataURL('image/jpeg', quality);
-    const response = await fetch(dataUrl);
-    const imgBuffer = await response.arrayBuffer();
+    // Get JPEG image data using toBlob (faster and memory-efficient compared to toDataURL)
+    const imgBuffer = await new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (!blob) {
+          reject(new Error("Canvas export failed"));
+          return;
+        }
+        blob.arrayBuffer().then(resolve).catch(reject);
+      }, 'image/jpeg', quality);
+    });
     
     const embeddedImage = await compressedPdf.embedJpg(imgBuffer);
     
@@ -309,8 +343,25 @@ async function compressPDF(file, level = 'medium', onProgress = () => {}) {
     });
   }
   
+  // Clear canvas memory references
+  canvas.width = 0;
+  canvas.height = 0;
+  
   onProgress(0.92, "Encoding optimized stream layers...");
-  const compressedBytes = await compressedPdf.save();
+  let compressedBytes = await compressedPdf.save({ useObjectStreams: true });
+  
+  // Safety Check: If the rasterized PDF is larger than original PDF (common for vector PDFs),
+  // fall back to saving the original PDF with stream object compression (keeps vector quality and saves space)
+  if (compressedBytes.length >= file.size) {
+    onProgress(0.95, "Rasterization would increase size. Consolidating stream objects...");
+    const originalPdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+    compressedBytes = await originalPdfDoc.save({ useObjectStreams: true });
+    
+    if (compressedBytes.length >= file.size) {
+      compressedBytes = new Uint8Array(arrayBuffer);
+    }
+  }
+  
   onProgress(1.0, "Optimization complete!");
   return compressedBytes;
 }
@@ -377,18 +428,56 @@ async function saveEditedPDF(originalBytes, annotations, onProgress = () => {}) 
 }
 
 /**
- * Encrypt a PDF document client-side using Web Crypto
+ * Encrypt a PDF document client-side or using Python Backend API
  */
 async function encryptPDFFile(pdfBytes, password) {
+  // Try Python Backend API first (highly efficient for large files, avoids Web Crypto Heap limits)
+  try {
+    const response = await fetch('/api/encrypt', {
+      method: 'POST',
+      headers: {
+        'X-Password': password
+      },
+      body: new Uint8Array(pdfBytes)
+    });
+    if (response.ok) {
+      return new Uint8Array(await response.arrayBuffer());
+    } else {
+      console.warn("Backend encryption returned error, falling back:", await response.text());
+    }
+  } catch (err) {
+    console.warn("Backend encryption API unavailable, using client fallback:", err);
+  }
+
+  // Client-side fallback
   const encryptModule = await import('https://cdn.jsdelivr.net/npm/@pdfsmaller/pdf-encrypt/+esm');
   const bytes = new Uint8Array(pdfBytes);
   return await encryptModule.encryptPDF(bytes, password);
 }
 
 /**
- * Decrypt a PDF document client-side using Web Crypto
+ * Decrypt a PDF document client-side or using Python Backend API
  */
 async function decryptPDFFile(pdfBytes, password) {
+  // Try Python Backend API first
+  try {
+    const response = await fetch('/api/decrypt', {
+      method: 'POST',
+      headers: {
+        'X-Password': password
+      },
+      body: new Uint8Array(pdfBytes)
+    });
+    if (response.ok) {
+      return new Uint8Array(await response.arrayBuffer());
+    } else {
+      console.warn("Backend decryption returned error, falling back:", await response.text());
+    }
+  } catch (err) {
+    console.warn("Backend decryption API unavailable, using client fallback:", err);
+  }
+
+  // Client-side fallback
   const decryptModule = await import('https://cdn.jsdelivr.net/npm/@pdfsmaller/pdf-decrypt/+esm');
   const bytes = new Uint8Array(pdfBytes);
   return await decryptModule.decryptPDF(bytes, password);
