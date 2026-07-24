@@ -137,45 +137,6 @@ function initMergerTab() {
     }
   });
 
-  // Lazy thumbnail observer & worker task queue
-  let thumbnailObserver = null;
-  const renderTaskQueue = [];
-  let activeRenderCount = 0;
-  const MAX_CONCURRENT_RENDERS = 2;
-
-  function processThumbnailQueue() {
-    if (activeRenderCount >= MAX_CONCURRENT_RENDERS || renderTaskQueue.length === 0) return;
-    const task = renderTaskQueue.shift();
-    activeRenderCount++;
-    renderPDFInfoAndThumbnail(task.item).finally(() => {
-      activeRenderCount--;
-      processThumbnailQueue();
-    });
-  }
-
-  function queueThumbnailRender(item) {
-    if (item.rendered) return;
-    item.rendered = true;
-    renderTaskQueue.push({ item });
-    processThumbnailQueue();
-  }
-
-  function setupLazyThumbnailObserver() {
-    if (thumbnailObserver) thumbnailObserver.disconnect();
-    thumbnailObserver = new IntersectionObserver((entries) => {
-      entries.forEach(entry => {
-        if (entry.isIntersecting) {
-          const itemId = entry.target.dataset.id;
-          const item = mergeQueue.find(x => x.id === itemId);
-          if (item && !item.rendered) {
-            queueThumbnailRender(item);
-          }
-          thumbnailObserver.unobserve(entry.target);
-        }
-      });
-    }, { root: fileListContainer, rootMargin: '150px' });
-  }
-
   async function handleFiles(files) {
     successCard.style.display = 'none';
     const fileList = Array.from(files);
@@ -185,19 +146,10 @@ function initMergerTab() {
       const file = fileList[i];
       const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
       if (isPdf) {
-        try {
-          const processedFile = await getOrDecryptFile(file);
-          validItems.push({
-            id: crypto.randomUUID(),
-            file: processedFile,
-            rendered: false
-          });
-        } catch (err) {
-          console.warn(`Could not add file "${file.name}": ${err.message}`);
-        }
-      }
-      if (i % 50 === 0 && i > 0) {
-        await new Promise(r => setTimeout(r, 0));
+        validItems.push({
+          id: crypto.randomUUID(),
+          file: file
+        });
       }
     }
 
@@ -212,7 +164,6 @@ function initMergerTab() {
     btnRun.disabled = mergeQueue.length < 2;
     btnClearMerge.style.display = mergeQueue.length > 0 ? 'block' : 'none';
 
-    setupLazyThumbnailObserver();
     const fragment = document.createDocumentFragment();
 
     mergeQueue.forEach((item, index) => {
@@ -226,14 +177,14 @@ function initMergerTab() {
         <div class="file-drag-handle">
           <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></svg>
         </div>
-        <div class="file-thumbnail" id="thumb-${item.id}">
+        <div class="file-thumbnail">
           <span class="file-thumbnail-icon">PDF</span>
         </div>
         <div class="file-info">
           <div class="file-name">${item.file.name}</div>
           <div class="file-meta">
             <span>${formatBytes(item.file.size)}</span>
-            <span id="pages-${item.id}">${item.numPages ? `Pages: ${item.numPages}` : 'PDF Document'}</span>
+            <span>PDF Document</span>
           </div>
         </div>
         <div class="file-actions">
@@ -299,47 +250,9 @@ function initMergerTab() {
       });
 
       fragment.appendChild(itemEl);
-
-      if (thumbnailObserver) {
-        thumbnailObserver.observe(itemEl);
-      }
     });
 
     fileListContainer.appendChild(fragment);
-  }
-
-  // PDF Page loader & Preview helper
-  async function renderPDFInfoAndThumbnail(item) {
-    try {
-      const arrayBuffer = await fileToArrayBuffer(item.file);
-      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      item.numPages = pdf.numPages;
-      
-      const pagesLabel = document.getElementById(`pages-${item.id}`);
-      if (pagesLabel) pagesLabel.textContent = `Pages: ${pdf.numPages}`;
-      
-      const page = await pdf.getPage(1);
-      const viewport = page.getViewport({ scale: 0.15 });
-      
-      const canvas = document.createElement('canvas');
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      
-      const context = canvas.getContext('2d');
-      await page.render({ canvasContext: context, viewport: viewport }).promise;
-      
-      const thumbWrap = document.getElementById(`thumb-${item.id}`);
-      if (thumbWrap) {
-        thumbWrap.innerHTML = '';
-        thumbWrap.appendChild(canvas);
-      }
-    } catch (e) {
-      console.error(e);
-      const pagesLabel = document.getElementById(`pages-${item.id}`);
-      if (pagesLabel) pagesLabel.textContent = 'PDF Document';
-    }
   }
 
   // Clear Merger queue list handler

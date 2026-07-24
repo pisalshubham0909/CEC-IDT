@@ -71,13 +71,33 @@ async function mergePDFs(files, onProgress = () => {}) {
   
   const mergedPdf = await PDFLib.PDFDocument.create();
   const totalFiles = files.length;
-  const yieldBatchSize = 10;
+  const yieldBatchSize = 50;
   
   for (let i = 0; i < totalFiles; i++) {
-    onProgress((i / totalFiles) * 0.9, `Merging file ${i + 1} of ${totalFiles}: ${files[i].name}...`);
+    if (i % 25 === 0 || i === totalFiles - 1) {
+      onProgress((i / totalFiles) * 0.95, `Merging file ${i + 1} of ${totalFiles}: ${files[i].name}...`);
+    }
     
-    let fileBytes = await fileToArrayBuffer(files[i]);
-    let pdfDoc = await PDFLib.PDFDocument.load(fileBytes);
+    let fileBytes;
+    if (typeof files[i].arrayBuffer === 'function') {
+      fileBytes = await files[i].arrayBuffer();
+    } else {
+      fileBytes = await fileToArrayBuffer(files[i]);
+    }
+    
+    let pdfDoc;
+    try {
+      pdfDoc = await PDFLib.PDFDocument.load(fileBytes);
+    } catch (err) {
+      const msg = (err.message || '').toLowerCase();
+      if (msg.includes('encrypt') || msg.includes('password') || msg.includes('decrypt')) {
+        const unlockedFile = await getOrDecryptFile(files[i]);
+        const unlockedBytes = await unlockedFile.arrayBuffer();
+        pdfDoc = await PDFLib.PDFDocument.load(unlockedBytes);
+      } else {
+        throw err;
+      }
+    }
     
     const pageIndices = pdfDoc.getPageIndices();
     const copiedPages = await mergedPdf.copyPages(pdfDoc, pageIndices);
@@ -86,21 +106,19 @@ async function mergePDFs(files, onProgress = () => {}) {
       mergedPdf.addPage(copiedPages[j]);
     }
     
-    // Release objects for GC
     fileBytes = null;
     pdfDoc = null;
     
-    // Yield execution to UI thread periodically so progress updates smoothly
     if (i % yieldBatchSize === 0 || i === totalFiles - 1) {
       await new Promise(r => setTimeout(r, 0));
     }
   }
   
-  onProgress(0.92, `Finalizing merged document structure (${mergedPdf.getPageCount()} pages total)...`);
-  await new Promise(r => setTimeout(r, 10));
+  onProgress(0.96, `Finalizing PDF structure (${mergedPdf.getPageCount()} pages total)...`);
+  await new Promise(r => setTimeout(r, 0));
   
-  onProgress(0.95, "Compiling final PDF structure...");
-  const mergedPdfBytes = await mergedPdf.save({ useObjectStreams: true });
+  onProgress(0.98, "Saving compiled document...");
+  const mergedPdfBytes = await mergedPdf.save({ useObjectStreams: false });
   onProgress(1.0, "Merge complete!");
   return mergedPdfBytes;
 }
