@@ -76,8 +76,8 @@ async function mergePDFs(files, onProgress = () => {}) {
     if (!startRes.ok) throw new Error("Server session start failed");
     const sessionId = await startRes.text();
 
-    // Dynamic byte-capped chunking (max 50MB per chunk request)
-    const MAX_CHUNK_BYTES = 50 * 1024 * 1024;
+    // Dynamic byte-capped chunking (max 200MB per chunk request)
+    const MAX_CHUNK_BYTES = 200 * 1024 * 1024;
     const fileChunks = [];
     let currentChunk = [];
     let currentBytes = 0;

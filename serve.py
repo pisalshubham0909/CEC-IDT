@@ -47,6 +47,11 @@ def run_server():
                 body = self.rfile.read(content_length) if content_length > 0 else b""
                 
                 import io, uuid, struct
+                try:
+                    import pypdfium2 as pdfium
+                    HAS_PDFIUM = True
+                except ImportError:
+                    HAS_PDFIUM = False
                 from pypdf import PdfReader, PdfWriter
 
                 global MERGE_SESSIONS
@@ -56,7 +61,8 @@ def run_server():
                 if self.path == "/api/merge_start":
                     session_id = str(uuid.uuid4())
                     MERGE_SESSIONS[session_id] = {
-                        'writer': PdfWriter(),
+                        'master': pdfium.PdfDocument.new() if HAS_PDFIUM else PdfWriter(),
+                        'type': 'pdfium' if HAS_PDFIUM else 'pypdf',
                         'created': time.time()
                     }
                     self.send_api_response(session_id.encode('utf-8'), "text/plain")
@@ -64,7 +70,7 @@ def run_server():
                 elif self.path.startswith("/api/merge_chunk"):
                     session_id = self.headers.get('X-Session-ID', '')
                     if session_id in MERGE_SESSIONS:
-                        writer = MERGE_SESSIONS[session_id]['writer']
+                        sess = MERGE_SESSIONS[session_id]
                         offset = 0
                         body_len = len(body)
                         while offset < body_len:
@@ -76,10 +82,31 @@ def run_server():
                                 break
                             file_bytes = body[offset:offset+file_len]
                             offset += file_len
-                            try:
-                                writer.append(io.BytesIO(file_bytes))
-                            except Exception as pdf_err:
-                                print(f"Warning during chunk merge: {pdf_err}")
+                            
+                            if sess['type'] == 'pdfium':
+                                try:
+                                    src_doc = pdfium.PdfDocument(file_bytes)
+                                    sess['master'].import_pages(src_doc)
+                                    src_doc.close()
+                                except Exception as pdf_err:
+                                    print(f"Warning during PDFium chunk merge: {pdf_err}")
+                                    try:
+                                        # Fallback to pypdf for problematic file
+                                        reader = PdfReader(io.BytesIO(file_bytes), strict=False)
+                                        temp_writer = PdfWriter()
+                                        for p in reader.pages: temp_writer.add_page(p)
+                                        t_buf = io.BytesIO()
+                                        temp_writer.write(t_buf)
+                                        temp_doc = pdfium.PdfDocument(t_buf.getvalue())
+                                        sess['master'].import_pages(temp_doc)
+                                        temp_doc.close()
+                                    except Exception as e2:
+                                        print(f"File skipped due to severe corruption: {e2}")
+                            else:
+                                try:
+                                    sess['master'].append(io.BytesIO(file_bytes))
+                                except Exception as pdf_err:
+                                    print(f"Warning during pypdf chunk merge: {pdf_err}")
 
                         self.send_api_response(b"OK", "text/plain")
                     else:
@@ -89,9 +116,12 @@ def run_server():
                     session_id = self.headers.get('X-Session-ID', '')
                     if session_id in MERGE_SESSIONS:
                         sess = MERGE_SESSIONS.pop(session_id)
-                        writer = sess['writer']
                         out_buffer = io.BytesIO()
-                        writer.write(out_buffer)
+                        if sess['type'] == 'pdfium':
+                            sess['master'].save(out_buffer)
+                            sess['master'].close()
+                        else:
+                            sess['master'].write(out_buffer)
                         self.send_api_response(out_buffer.getvalue(), "application/pdf")
                     else:
                         self.send_error(400, "Invalid Session ID")
