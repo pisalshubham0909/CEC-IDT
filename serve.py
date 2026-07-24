@@ -128,27 +128,33 @@ def run_server():
 
                 elif self.path == "/api/encrypt":
                     password = self.headers.get('X-Password', '')
-                    reader = PdfReader(io.BytesIO(body))
-                    writer = PdfWriter()
-                    for page in reader.pages:
-                        writer.add_page(page)
-                    writer.encrypt(user_password=password)
-                    
                     out_buffer = io.BytesIO()
-                    writer.write(out_buffer)
+                    if HAS_PDFIUM:
+                        pdf = pdfium.PdfDocument(body)
+                        pdf.save(out_buffer, user_password=password, owner_password=password)
+                        pdf.close()
+                    else:
+                        reader = PdfReader(io.BytesIO(body), strict=False)
+                        writer = PdfWriter()
+                        writer.append(reader)
+                        writer.encrypt(user_password=password)
+                        writer.write(out_buffer)
                     self.send_api_response(out_buffer.getvalue(), "application/pdf")
                     
                 elif self.path == "/api/decrypt":
                     password = self.headers.get('X-Password', '')
-                    reader = PdfReader(io.BytesIO(body))
-                    if reader.is_encrypted:
-                        reader.decrypt(password)
-                    writer = PdfWriter()
-                    for page in reader.pages:
-                        writer.add_page(page)
-                        
                     out_buffer = io.BytesIO()
-                    writer.write(out_buffer)
+                    if HAS_PDFIUM:
+                        pdf = pdfium.PdfDocument(body, password=password)
+                        pdf.save(out_buffer)
+                        pdf.close()
+                    else:
+                        reader = PdfReader(io.BytesIO(body), strict=False)
+                        if reader.is_encrypted:
+                            reader.decrypt(password)
+                        writer = PdfWriter()
+                        writer.append(reader)
+                        writer.write(out_buffer)
                     self.send_api_response(out_buffer.getvalue(), "application/pdf")
                     
                 elif self.path == "/api/merge":

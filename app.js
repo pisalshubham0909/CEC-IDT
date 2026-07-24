@@ -1263,16 +1263,60 @@ function initWatermarkTab() {
     }
   });
   
-  wmType.addEventListener('change', () => {
-    if (wmType.value === 'text') {
-      textOptions.style.display = 'block';
-      imageOptions.style.display = 'none';
-    } else {
-      textOptions.style.display = 'none';
-      imageOptions.style.display = 'block';
+  [wmText, wmFontSize, wmColor, wmRotation, wmOpacity, wmPosition, wmType].forEach(el => {
+    if (el) {
+      el.addEventListener('input', updateWatermarkPreview);
+      el.addEventListener('change', updateWatermarkPreview);
     }
   });
-  
+
+  async function updateWatermarkPreview() {
+    if (!watermarkFile) return;
+    try {
+      const arrayBuffer = await fileToArrayBuffer(watermarkFile);
+      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
+      const page = await pdf.getPage(1);
+      const viewport = page.getViewport({ scale: 0.5 });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const ctx = canvas.getContext('2d');
+
+      await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+
+      const opacity = parseFloat(wmOpacity.value) || 0.5;
+      ctx.save();
+      ctx.globalAlpha = opacity;
+
+      if (wmType.value === 'text') {
+        const text = wmText.value || 'CONFIDENTIAL';
+        const fontSize = (parseInt(wmFontSize.value) || 36) * 0.5;
+        const color = wmColor.value || '#ff0000';
+        const rotation = (parseInt(wmRotation.value) || 45) * Math.PI / 180;
+
+        ctx.font = `bold ${fontSize}px Arial, sans-serif`;
+        ctx.fillStyle = color;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        ctx.translate(viewport.width / 2, viewport.height / 2);
+        ctx.rotate(rotation);
+        ctx.fillText(text, 0, 0);
+      }
+      ctx.restore();
+
+      previewContainer.innerHTML = '';
+      const wrap = document.createElement('div');
+      wrap.className = 'canvas-page-wrapper';
+      wrap.appendChild(canvas);
+      previewContainer.appendChild(wrap);
+    } catch (e) {
+      console.error(e);
+    }
+  }
+
   async function loadFile(file) {
     watermarkFile = file;
     dropzone.style.display = 'none';
@@ -1291,23 +1335,9 @@ function initWatermarkTab() {
     try {
       const arrayBuffer = await fileToArrayBuffer(file);
       pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
       filePagesLabel.textContent = `Pages: ${pdf.numPages}`;
-      
-      const page = await pdf.getPage(1);
-      const viewport = page.getViewport({ scale: 0.35 });
-      const canvas = document.createElement('canvas');
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      const context = canvas.getContext('2d');
-      
-      previewContainer.innerHTML = '';
-      const wrap = document.createElement('div');
-      wrap.className = 'canvas-page-wrapper';
-      wrap.appendChild(canvas);
-      previewContainer.appendChild(wrap);
-      
-      await page.render({ canvasContext: context, viewport: viewport }).promise;
+      await updateWatermarkPreview();
     } catch (e) {
       console.error(e);
       filePagesLabel.textContent = "Pages: Error";

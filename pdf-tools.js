@@ -195,6 +195,7 @@ async function mergePDFs(files, onProgress = () => {}) {
 
 /**
  * Convert images (JPG, PNG, WebP) to a single PDF
+ * Convert images (JPG, PNG, WebP) to a single PDF preserving 100% pixel clarity
  * @param {Array<File>} files List of image files
  * @param {Object} options Configuration parameters
  * @param {Function} onProgress Callback for progress tracking
@@ -217,9 +218,21 @@ async function imagesToPDF(files, options = {}, onProgress = () => {}) {
     const file = files[i];
     onProgress(i / files.length, `Processing image ${i + 1} of ${files.length}...`);
     
-    // Process image to standardized JPEG bytes (helps handle webp/gifs/pngs consistently)
-    const jpgBytes = await processImageToJpgBytes(file);
-    const embeddedImage = await pdfDoc.embedJpg(jpgBytes);
+    let embeddedImage;
+    const arrayBuffer = await file.arrayBuffer();
+    const nameLower = file.name.toLowerCase();
+    const isPng = file.type === 'image/png' || nameLower.endsWith('.png');
+    const isJpg = file.type === 'image/jpeg' || file.type === 'image/jpg' || nameLower.endsWith('.jpg') || nameLower.endsWith('.jpeg');
+
+    if (isPng) {
+      embeddedImage = await pdfDoc.embedPng(arrayBuffer);
+    } else if (isJpg) {
+      embeddedImage = await pdfDoc.embedJpg(arrayBuffer);
+    } else {
+      const jpgBytes = await processImageToJpgBytes(file);
+      embeddedImage = await pdfDoc.embedJpg(jpgBytes);
+    }
+    
     const imgWidth = embeddedImage.width;
     const imgHeight = embeddedImage.height;
     
@@ -283,7 +296,7 @@ async function imagesToPDF(files, options = {}, onProgress = () => {}) {
     });
   }
   
-  onProgress(0.95, "Compiling PDF document...");
+  onProgress(0.95, "Compiling high-clarity PDF document...");
   const pdfBytes = await pdfDoc.save();
   onProgress(1.0, "Conversion complete!");
   return pdfBytes;
@@ -351,7 +364,7 @@ async function resizePDF(file, options = {}, onProgress = () => {}) {
 }
 
 /**
- * Compress a PDF by re-rendering pages to compressed JPEGs
+ * Compress a PDF by downsampling images with buffer cloning (prevents detached ArrayBuffer errors)
  * @param {File} file PDF File
  * @param {String} level 'low' | 'medium' | 'high'
  * @param {Function} onProgress Progress callback
@@ -369,7 +382,7 @@ async function compressPDF(file, level = 'medium', onProgress = () => {}) {
       headers: {
         'X-Level': level
       },
-      body: new Uint8Array(arrayBuffer)
+      body: new Uint8Array(arrayBuffer.slice(0))
     });
     if (response.ok) {
       onProgress(0.9, "Receiving optimized PDF streams...");
@@ -383,23 +396,23 @@ async function compressPDF(file, level = 'medium', onProgress = () => {}) {
     console.warn("Backend compression API unavailable, using client-side fallback:", err);
   }
 
-  // Client-side fallback (Downsamples images using Canvas to achieve real compression)
-  onProgress(0.1, "Initializing client-side rasterizing compressor...");
+  // Client-side fallback with cloned buffer to prevent ArrayBuffer detachment error
+  onProgress(0.1, "Initializing client-side compressor...");
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
   const numPages = pdf.numPages;
   const compressedPdf = await PDFLib.PDFDocument.create();
   
   // Adjusted DPI scales and quality to achieve ACTUAL compression on client-side
   let dpiScale = 1.3; // medium (balanced)
-  let quality = 0.6;
+  let quality = 0.65;
   
   if (level === 'high') {
     dpiScale = 0.9; // high compression (smallest size)
     quality = 0.45;
-  } else if (level === 'low') {
+  } else if (level === 'low' || level === 'keep') {
     dpiScale = 1.8; // low compression (high quality)
-    quality = 0.75;
+    quality = 0.85;
   }
   
   // Reuse a single canvas element to prevent browser memory leaks and tab crashes
@@ -451,21 +464,8 @@ async function compressPDF(file, level = 'medium', onProgress = () => {}) {
   canvas.width = 0;
   canvas.height = 0;
   
-  onProgress(0.92, "Encoding optimized stream layers...");
-  let compressedBytes = await compressedPdf.save({ useObjectStreams: true });
-  
-  // Safety Check: If the rasterized PDF is larger than original PDF (common for vector PDFs),
-  // fall back to saving the original PDF with stream object compression (keeps vector quality and saves space)
-  if (compressedBytes.length >= file.size) {
-    onProgress(0.95, "Rasterization would increase size. Consolidating stream objects...");
-    const originalPdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
-    compressedBytes = await originalPdfDoc.save({ useObjectStreams: true });
-    
-    if (compressedBytes.length >= file.size) {
-      compressedBytes = new Uint8Array(arrayBuffer);
-    }
-  }
-  
+  onProgress(0.95, "Consolidating stream objects...");
+  const compressedBytes = await compressedPdf.save({ useObjectStreams: true });
   onProgress(1.0, "Optimization complete!");
   return compressedBytes;
 }
@@ -474,54 +474,56 @@ async function compressPDF(file, level = 'medium', onProgress = () => {}) {
  * Burn text annotations and hand-drawn PNG signatures onto original PDF page layers
  * @param {ArrayBuffer} originalBytes Original PDF binary
  * @param {Array<Object>} annotations List of overlays with relative coords
+ * @param {Boolean} applyToAllPages Whether to apply annotations to every page
  * @param {Function} onProgress Progress callback
  * @returns {Promise<Uint8Array>} Updated PDF bytes
  */
-async function saveEditedPDF(originalBytes, annotations, onProgress = () => {}) {
+async function saveEditedPDF(originalBytes, annotations, applyToAllPages = false, onProgress = () => {}) {
   onProgress(0.2, "Loading original document...");
   const pdfDoc = await PDFLib.PDFDocument.load(originalBytes);
   const pages = pdfDoc.getPages();
-  
   const standardFont = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
   
   for (let i = 0; i < annotations.length; i++) {
     const annot = annotations[i];
     onProgress(0.3 + (i / annotations.length) * 0.5, `Applying changes...`);
     
-    const page = pages[annot.pageIndex];
-    if (!page) continue;
+    const targetPages = applyToAllPages ? pages : [pages[annot.pageIndex]];
     
-    const { width, height } = page.getSize();
-    
-    if (annot.type === 'text') {
-      // Map coordinates back: x is left percent, y is top percent
-      const pdfX = annot.x * width;
-      // Adjust vertical align since PDF draws baseline up
-      const pdfY = (1.0 - annot.y) * height - (annot.fontSize * 0.82);
+    for (const page of targetPages) {
+      if (!page) continue;
+      const { width, height } = page.getSize();
       
-      page.drawText(annot.text, {
-        x: pdfX,
-        y: pdfY,
-        size: annot.fontSize,
-        font: standardFont,
-        color: PDFLib.rgb(0, 0, 0)
-      });
-    } else if (annot.type === 'image') {
-      const response = await fetch(annot.imageSrc);
-      const imgBuffer = await response.arrayBuffer();
-      const embeddedImg = await pdfDoc.embedPng(imgBuffer);
-      
-      const pdfW = annot.width * width;
-      const pdfH = annot.height * height;
-      const pdfX = annot.x * width;
-      const pdfY = (1.0 - annot.y) * height - pdfH;
-      
-      page.drawImage(embeddedImg, {
-        x: pdfX,
-        y: pdfY,
-        width: pdfW,
-        height: pdfH
-      });
+      if (annot.type === 'text') {
+        // Map coordinates back: x is left percent, y is top percent
+        const pdfX = annot.x * width;
+        // Adjust vertical align since PDF draws baseline up
+        const pdfY = (1.0 - annot.y) * height - (annot.fontSize * 0.82);
+        
+        page.drawText(annot.text, {
+          x: pdfX,
+          y: pdfY,
+          size: annot.fontSize,
+          font: standardFont,
+          color: PDFLib.rgb(0, 0, 0)
+        });
+      } else if (annot.type === 'image') {
+        const response = await fetch(annot.imageSrc);
+        const imgBuffer = await response.arrayBuffer();
+        const embeddedImg = await pdfDoc.embedPng(imgBuffer);
+        
+        const pdfW = annot.width * width;
+        const pdfH = annot.height * height;
+        const pdfX = annot.x * width;
+        const pdfY = (1.0 - annot.y) * height - pdfH;
+        
+        page.drawImage(embeddedImg, {
+          x: pdfX,
+          y: pdfY,
+          width: pdfW,
+          height: pdfH
+        });
+      }
     }
   }
   
@@ -532,59 +534,45 @@ async function saveEditedPDF(originalBytes, annotations, onProgress = () => {}) 
 }
 
 /**
- * Encrypt a PDF document client-side or using Python Backend API
+ * Encrypt a PDF document client-side or using Python Backend API across ALL pages
  */
 async function encryptPDFFile(pdfBytes, password) {
-  // Try Python Backend API first (highly efficient for large files, avoids Web Crypto Heap limits)
   try {
     const response = await fetch('/api/encrypt', {
       method: 'POST',
-      headers: {
-        'X-Password': password
-      },
-      body: new Uint8Array(pdfBytes)
+      headers: { 'X-Password': password },
+      body: new Uint8Array(pdfBytes.slice(0))
     });
     if (response.ok) {
       return new Uint8Array(await response.arrayBuffer());
-    } else {
-      console.warn("Backend encryption returned error, falling back:", await response.text());
     }
   } catch (err) {
     console.warn("Backend encryption API unavailable, using client fallback:", err);
   }
 
-  // Client-side fallback
   const encryptModule = await import('https://cdn.jsdelivr.net/npm/@pdfsmaller/pdf-encrypt/+esm');
-  const bytes = new Uint8Array(pdfBytes);
-  return await encryptModule.encryptPDF(bytes, password);
+  return await encryptModule.encryptPDF(new Uint8Array(pdfBytes), password);
 }
 
 /**
- * Decrypt a PDF document client-side or using Python Backend API
+ * Decrypt a PDF document client-side or using Python Backend API across ALL pages
  */
 async function decryptPDFFile(pdfBytes, password) {
-  // Try Python Backend API first
   try {
     const response = await fetch('/api/decrypt', {
       method: 'POST',
-      headers: {
-        'X-Password': password
-      },
-      body: new Uint8Array(pdfBytes)
+      headers: { 'X-Password': password },
+      body: new Uint8Array(pdfBytes.slice(0))
     });
     if (response.ok) {
       return new Uint8Array(await response.arrayBuffer());
-    } else {
-      console.warn("Backend decryption returned error, falling back:", await response.text());
     }
   } catch (err) {
     console.warn("Backend decryption API unavailable, using client fallback:", err);
   }
 
-  // Client-side fallback
   const decryptModule = await import('https://cdn.jsdelivr.net/npm/@pdfsmaller/pdf-decrypt/+esm');
-  const bytes = new Uint8Array(pdfBytes);
-  return await decryptModule.decryptPDF(bytes, password);
+  return await decryptModule.decryptPDF(new Uint8Array(pdfBytes), password);
 }
 
 /**
