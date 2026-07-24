@@ -183,22 +183,45 @@ def run_server():
                     self.send_api_response(out_buffer.getvalue(), "application/pdf")
 
                 elif self.path == "/api/compress":
-                    reader = PdfReader(io.BytesIO(body))
-                    writer = PdfWriter()
-                    for page in reader.pages:
-                        writer.add_page(page)
-                    
-                    writer.compress_identical_objects(remove_duplicates=True, remove_unreferenced=True)
-                    for page in writer.pages:
-                        page.compress_content_streams()
-                        
-                    out_buffer = io.BytesIO()
-                    writer.write(out_buffer)
-                    
-                    res_bytes = out_buffer.getvalue()
-                    if len(res_bytes) >= len(body):
+                    level = self.headers.get('X-Level', 'medium')
+                    res_bytes = body
+                    try:
+                        if HAS_PDFIUM:
+                            from PIL import Image
+                            pdf = pdfium.PdfDocument(body)
+                            scale = 1.1
+                            quality = 50
+                            if level == 'high':
+                                scale = 0.8
+                                quality = 35
+                            elif level == 'low' or level == 'keep':
+                                scale = 1.4
+                                quality = 70
+
+                            images = [page.render(scale=scale).to_pil() for page in pdf]
+                            pdf.close()
+                            if images:
+                                out_buf = io.BytesIO()
+                                images[0].save(out_buf, format='PDF', save_all=True, append_images=images[1:], quality=quality, optimize=True)
+                                comp_bytes = out_buf.getvalue()
+                                if len(comp_bytes) < len(body):
+                                    res_bytes = comp_bytes
+                        else:
+                            reader = PdfReader(io.BytesIO(body), strict=False)
+                            writer = PdfWriter()
+                            writer.append(reader)
+                            writer.compress_identical_objects(remove_duplicates=True, remove_unreferenced=True)
+                            for page in writer.pages:
+                                page.compress_content_streams()
+                            out_buffer = io.BytesIO()
+                            writer.write(out_buffer)
+                            comp_bytes = out_buffer.getvalue()
+                            if len(comp_bytes) < len(body):
+                                res_bytes = comp_bytes
+                    except Exception as comp_err:
+                        print(f"Backend compression fallback warning: {comp_err}")
                         res_bytes = body
-                        
+
                     self.send_api_response(res_bytes, "application/pdf")
                     
                 else:
