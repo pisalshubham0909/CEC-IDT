@@ -69,22 +69,95 @@ async function mergePDFs(files, onProgress = () => {}) {
     throw new Error("No files selected for merging.");
   }
   
+  // 1. Attempt Low-Memory Session Backend Merge if Python server is active
+  try {
+    onProgress(0.05, "Initializing high-speed merge session...");
+    const startRes = await fetch('/api/merge_start', { method: 'POST' });
+    if (!startRes.ok) throw new Error("Server session start failed");
+    const sessionId = await startRes.text();
+
+    // Dynamic byte-capped chunking (max 50MB per chunk request)
+    const MAX_CHUNK_BYTES = 50 * 1024 * 1024;
+    const fileChunks = [];
+    let currentChunk = [];
+    let currentBytes = 0;
+
+    for (let i = 0; i < files.length; i++) {
+      currentChunk.push(files[i]);
+      currentBytes += files[i].size;
+      if (currentBytes >= MAX_CHUNK_BYTES || i === files.length - 1) {
+        fileChunks.push(currentChunk);
+        currentChunk = [];
+        currentBytes = 0;
+      }
+    }
+
+    const totalChunks = fileChunks.length;
+
+    for (let c = 0; c < totalChunks; c++) {
+      const chunkFiles = fileChunks[c];
+      const progressPercent = 0.1 + (c / totalChunks) * 0.8;
+      onProgress(progressPercent, `Uploading batch ${c + 1} of ${totalChunks} (${chunkFiles.length} files)...`);
+
+      let chunkLength = 0;
+      const chunkBuffers = [];
+      for (let i = 0; i < chunkFiles.length; i++) {
+        const buf = await chunkFiles[i].arrayBuffer();
+        chunkBuffers.push(buf);
+        chunkLength += 4 + buf.byteLength;
+      }
+
+      const payload = new Uint8Array(chunkLength);
+      const view = new DataView(payload.buffer);
+      let offset = 0;
+      for (let i = 0; i < chunkBuffers.length; i++) {
+        const buf = chunkBuffers[i];
+        view.setUint32(offset, buf.byteLength, false);
+        offset += 4;
+        payload.set(new Uint8Array(buf), offset);
+        offset += buf.byteLength;
+      }
+
+      const chunkRes = await fetch('/api/merge_chunk', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/octet-stream',
+          'X-Session-ID': sessionId
+        },
+        body: payload
+      });
+
+      if (!chunkRes.ok) throw new Error("Chunk upload failed");
+      await new Promise(r => setTimeout(r, 0));
+    }
+
+    onProgress(0.92, "Compiling final PDF document on server...");
+    const finishRes = await fetch('/api/merge_finish', {
+      method: 'POST',
+      headers: { 'X-Session-ID': sessionId }
+    });
+
+    if (!finishRes.ok) throw new Error("Finish merge failed");
+    const resBuf = await finishRes.arrayBuffer();
+    onProgress(1.0, "Merge complete!");
+    return new Uint8Array(resBuf);
+
+  } catch (backendErr) {
+    console.warn("Backend chunk merge unavailable, using client fallback:", backendErr);
+  }
+  
+  // 2. Client-side Chunked Fallback Merge using pdf-lib
+  onProgress(0.1, "Merging files client-side...");
   const mergedPdf = await PDFLib.PDFDocument.create();
   const totalFiles = files.length;
-  const yieldBatchSize = 50;
+  const yieldBatchSize = 25;
   
   for (let i = 0; i < totalFiles; i++) {
-    if (i % 25 === 0 || i === totalFiles - 1) {
-      onProgress((i / totalFiles) * 0.95, `Merging file ${i + 1} of ${totalFiles}: ${files[i].name}...`);
+    if (i % 10 === 0 || i === totalFiles - 1) {
+      onProgress(0.1 + (i / totalFiles) * 0.8, `Merging file ${i + 1} of ${totalFiles}: ${files[i].name}...`);
     }
     
-    let fileBytes;
-    if (typeof files[i].arrayBuffer === 'function') {
-      fileBytes = await files[i].arrayBuffer();
-    } else {
-      fileBytes = await fileToArrayBuffer(files[i]);
-    }
-    
+    let fileBytes = await files[i].arrayBuffer();
     let pdfDoc;
     try {
       pdfDoc = await PDFLib.PDFDocument.load(fileBytes);
@@ -114,10 +187,7 @@ async function mergePDFs(files, onProgress = () => {}) {
     }
   }
   
-  onProgress(0.96, `Finalizing PDF structure (${mergedPdf.getPageCount()} pages total)...`);
-  await new Promise(r => setTimeout(r, 0));
-  
-  onProgress(0.98, "Saving compiled document...");
+  onProgress(0.95, "Compiling final PDF structure...");
   const mergedPdfBytes = await mergedPdf.save({ useObjectStreams: false });
   onProgress(1.0, "Merge complete!");
   return mergedPdfBytes;

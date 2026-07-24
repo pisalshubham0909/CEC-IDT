@@ -24,7 +24,7 @@ def run_server():
             self.send_response(200)
             self.send_header('Access-Control-Allow-Origin', '*')
             self.send_header('Access-Control-Allow-Methods', 'POST, GET, OPTIONS')
-            self.send_header('Access-Control-Allow-Headers', 'X-Password, X-Level, Content-Type')
+            self.send_header('Access-Control-Allow-Headers', 'X-Password, X-Level, Content-Type, X-Session-ID')
             self.end_headers()
 
         def send_api_response(self, data, content_type="application/octet-stream"):
@@ -46,10 +46,57 @@ def run_server():
                 content_length = int(self.headers.get('Content-Length', 0))
                 body = self.rfile.read(content_length) if content_length > 0 else b""
                 
-                import io
+                import io, uuid, struct
                 from pypdf import PdfReader, PdfWriter
-                
-                if self.path == "/api/encrypt":
+
+                global MERGE_SESSIONS
+                if 'MERGE_SESSIONS' not in globals():
+                    MERGE_SESSIONS = {}
+
+                if self.path == "/api/merge_start":
+                    session_id = str(uuid.uuid4())
+                    MERGE_SESSIONS[session_id] = {
+                        'writer': PdfWriter(),
+                        'created': time.time()
+                    }
+                    self.send_api_response(session_id.encode('utf-8'), "text/plain")
+
+                elif self.path.startswith("/api/merge_chunk"):
+                    session_id = self.headers.get('X-Session-ID', '')
+                    if session_id in MERGE_SESSIONS:
+                        writer = MERGE_SESSIONS[session_id]['writer']
+                        offset = 0
+                        body_len = len(body)
+                        while offset < body_len:
+                            if offset + 4 > body_len:
+                                break
+                            file_len = struct.unpack('>I', body[offset:offset+4])[0]
+                            offset += 4
+                            if offset + file_len > body_len:
+                                break
+                            file_bytes = body[offset:offset+file_len]
+                            offset += file_len
+                            try:
+                                writer.append(io.BytesIO(file_bytes))
+                            except Exception as pdf_err:
+                                print(f"Warning during chunk merge: {pdf_err}")
+
+                        self.send_api_response(b"OK", "text/plain")
+                    else:
+                        self.send_error(400, "Invalid Session ID")
+
+                elif self.path.startswith("/api/merge_finish"):
+                    session_id = self.headers.get('X-Session-ID', '')
+                    if session_id in MERGE_SESSIONS:
+                        sess = MERGE_SESSIONS.pop(session_id)
+                        writer = sess['writer']
+                        out_buffer = io.BytesIO()
+                        writer.write(out_buffer)
+                        self.send_api_response(out_buffer.getvalue(), "application/pdf")
+                    else:
+                        self.send_error(400, "Invalid Session ID")
+
+                elif self.path == "/api/encrypt":
                     password = self.headers.get('X-Password', '')
                     reader = PdfReader(io.BytesIO(body))
                     writer = PdfWriter()
@@ -74,6 +121,31 @@ def run_server():
                     writer.write(out_buffer)
                     self.send_api_response(out_buffer.getvalue(), "application/pdf")
                     
+                elif self.path == "/api/merge":
+                    import struct
+                    writer = PdfWriter()
+                    offset = 0
+                    body_len = len(body)
+                    files_merged = 0
+                    while offset < body_len:
+                        if offset + 4 > body_len:
+                            break
+                        file_len = struct.unpack('>I', body[offset:offset+4])[0]
+                        offset += 4
+                        if offset + file_len > body_len:
+                            break
+                        file_bytes = body[offset:offset+file_len]
+                        offset += file_len
+                        try:
+                            writer.append(io.BytesIO(file_bytes))
+                            files_merged += 1
+                        except Exception as pdf_err:
+                            print(f"Warning during backend merge of file {files_merged+1}: {pdf_err}")
+
+                    out_buffer = io.BytesIO()
+                    writer.write(out_buffer)
+                    self.send_api_response(out_buffer.getvalue(), "application/pdf")
+
                 elif self.path == "/api/compress":
                     reader = PdfReader(io.BytesIO(body))
                     writer = PdfWriter()
