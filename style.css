@@ -387,6 +387,11 @@ nav {
   display: flex;
   flex-direction: column;
   gap: 0.75rem;
+  max-height: 600px;
+  overflow-y: auto;
+  contain: content;
+  will-change: transform;
+  padding-right: 0.25rem;
 }
 
 .file-item {
@@ -398,6 +403,9 @@ nav {
   align-items: center;
   gap: 1rem;
   transition: var(--transition-fast);
+  contain: content;
+  content-visibility: auto;
+  contain-intrinsic-size: 0 64px;
 }
 
 .file-item:hover {

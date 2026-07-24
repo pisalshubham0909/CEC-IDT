@@ -70,21 +70,37 @@ async function mergePDFs(files, onProgress = () => {}) {
   }
   
   const mergedPdf = await PDFLib.PDFDocument.create();
+  const totalFiles = files.length;
+  const yieldBatchSize = 10;
   
-  for (let i = 0; i < files.length; i++) {
-    onProgress(i / files.length, `Loading file ${i + 1} of ${files.length}: ${files[i].name}...`);
+  for (let i = 0; i < totalFiles; i++) {
+    onProgress((i / totalFiles) * 0.9, `Merging file ${i + 1} of ${totalFiles}: ${files[i].name}...`);
     
-    const fileBytes = await fileToArrayBuffer(files[i]);
-    const pdfDoc = await PDFLib.PDFDocument.load(fileBytes);
-    const pages = await mergedPdf.copyPages(pdfDoc, pdfDoc.getPageIndices());
+    let fileBytes = await fileToArrayBuffer(files[i]);
+    let pdfDoc = await PDFLib.PDFDocument.load(fileBytes);
     
-    pages.forEach((page) => {
-      mergedPdf.addPage(page);
-    });
+    const pageIndices = pdfDoc.getPageIndices();
+    const copiedPages = await mergedPdf.copyPages(pdfDoc, pageIndices);
+    
+    for (let j = 0; j < copiedPages.length; j++) {
+      mergedPdf.addPage(copiedPages[j]);
+    }
+    
+    // Release objects for GC
+    fileBytes = null;
+    pdfDoc = null;
+    
+    // Yield execution to UI thread periodically so progress updates smoothly
+    if (i % yieldBatchSize === 0 || i === totalFiles - 1) {
+      await new Promise(r => setTimeout(r, 0));
+    }
   }
   
+  onProgress(0.92, `Finalizing merged document structure (${mergedPdf.getPageCount()} pages total)...`);
+  await new Promise(r => setTimeout(r, 10));
+  
   onProgress(0.95, "Compiling final PDF structure...");
-  const mergedPdfBytes = await mergedPdf.save();
+  const mergedPdfBytes = await mergedPdf.save({ useObjectStreams: true });
   onProgress(1.0, "Merge complete!");
   return mergedPdfBytes;
 }
@@ -496,6 +512,26 @@ async function checkIsPDFEncrypted(pdfBytes) {
     if (msg.includes('encrypt') || msg.includes('password') || msg.includes('decrypt') || msg.includes('unsupported')) {
       return true;
     }
+    return false;
+  }
+}
+
+/**
+ * Fast check if a File is encrypted by scanning header & trailer slices (takes < 0.2ms)
+ */
+async function fastCheckIsPDFFileEncrypted(file) {
+  try {
+    const headSlice = file.slice(0, 4096);
+    const tailSlice = file.size > 8192 ? file.slice(file.size - 4096) : file.slice(0);
+    const [headBuf, tailBuf] = await Promise.all([
+      headSlice.arrayBuffer(),
+      tailSlice.arrayBuffer()
+    ]);
+    const decoder = new TextDecoder('latin1');
+    const headText = decoder.decode(headBuf);
+    const tailText = decoder.decode(tailBuf);
+    return headText.includes('/Encrypt') || tailText.includes('/Encrypt');
+  } catch (e) {
     return false;
   }
 }

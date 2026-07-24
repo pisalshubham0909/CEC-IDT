@@ -137,23 +137,73 @@ function initMergerTab() {
     }
   });
 
+  // Lazy thumbnail observer & worker task queue
+  let thumbnailObserver = null;
+  const renderTaskQueue = [];
+  let activeRenderCount = 0;
+  const MAX_CONCURRENT_RENDERS = 2;
+
+  function processThumbnailQueue() {
+    if (activeRenderCount >= MAX_CONCURRENT_RENDERS || renderTaskQueue.length === 0) return;
+    const task = renderTaskQueue.shift();
+    activeRenderCount++;
+    renderPDFInfoAndThumbnail(task.item).finally(() => {
+      activeRenderCount--;
+      processThumbnailQueue();
+    });
+  }
+
+  function queueThumbnailRender(item) {
+    if (item.rendered) return;
+    item.rendered = true;
+    renderTaskQueue.push({ item });
+    processThumbnailQueue();
+  }
+
+  function setupLazyThumbnailObserver() {
+    if (thumbnailObserver) thumbnailObserver.disconnect();
+    thumbnailObserver = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const itemId = entry.target.dataset.id;
+          const item = mergeQueue.find(x => x.id === itemId);
+          if (item && !item.rendered) {
+            queueThumbnailRender(item);
+          }
+          thumbnailObserver.unobserve(entry.target);
+        }
+      });
+    }, { root: fileListContainer, rootMargin: '150px' });
+  }
+
   async function handleFiles(files) {
     successCard.style.display = 'none';
     const fileList = Array.from(files);
-    for (const file of fileList) {
+    const validItems = [];
+
+    for (let i = 0; i < fileList.length; i++) {
+      const file = fileList[i];
       const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
       if (isPdf) {
         try {
           const processedFile = await getOrDecryptFile(file);
-          mergeQueue.push({
+          validItems.push({
             id: crypto.randomUUID(),
-            file: processedFile
+            file: processedFile,
+            rendered: false
           });
-          renderQueue();
         } catch (err) {
-          alert(`Could not add file "${file.name}": ${err.message}`);
+          console.warn(`Could not add file "${file.name}": ${err.message}`);
         }
       }
+      if (i % 50 === 0 && i > 0) {
+        await new Promise(r => setTimeout(r, 0));
+      }
+    }
+
+    if (validItems.length > 0) {
+      mergeQueue.push(...validItems);
+      renderQueue();
     }
   }
 
@@ -162,12 +212,13 @@ function initMergerTab() {
     btnRun.disabled = mergeQueue.length < 2;
     btnClearMerge.style.display = mergeQueue.length > 0 ? 'block' : 'none';
 
+    setupLazyThumbnailObserver();
+    const fragment = document.createDocumentFragment();
+
     mergeQueue.forEach((item, index) => {
       const itemEl = document.createElement('div');
       itemEl.className = 'file-item';
       itemEl.draggable = true;
-      
-      // Keep track of indexes for drag events
       itemEl.dataset.id = item.id;
       itemEl.dataset.index = index;
 
@@ -182,7 +233,7 @@ function initMergerTab() {
           <div class="file-name">${item.file.name}</div>
           <div class="file-meta">
             <span>${formatBytes(item.file.size)}</span>
-            <span id="pages-${item.id}">Reading pages...</span>
+            <span id="pages-${item.id}">${item.numPages ? `Pages: ${item.numPages}` : 'PDF Document'}</span>
           </div>
         </div>
         <div class="file-actions">
@@ -198,9 +249,6 @@ function initMergerTab() {
         </div>
       `;
 
-      fileListContainer.appendChild(itemEl);
-
-      // Dynamic event bindings
       itemEl.querySelector('.file-btn.delete').addEventListener('click', () => {
         mergeQueue = mergeQueue.filter(x => x.id !== item.id);
         renderQueue();
@@ -224,10 +272,6 @@ function initMergerTab() {
         }
       });
 
-      // Async render pdf thumbnail
-      renderPDFInfoAndThumbnail(item);
-
-      // Drag events
       itemEl.addEventListener('dragstart', (e) => {
         e.dataTransfer.setData('text/plain', index);
         itemEl.style.opacity = '0.4';
@@ -253,7 +297,15 @@ function initMergerTab() {
           renderQueue();
         }
       });
+
+      fragment.appendChild(itemEl);
+
+      if (thumbnailObserver) {
+        thumbnailObserver.observe(itemEl);
+      }
     });
+
+    fileListContainer.appendChild(fragment);
   }
 
   // PDF Page loader & Preview helper
@@ -263,12 +315,11 @@ function initMergerTab() {
       pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
       
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      item.numPages = pdf.numPages;
       
-      // Update page numbers in UI
       const pagesLabel = document.getElementById(`pages-${item.id}`);
       if (pagesLabel) pagesLabel.textContent = `Pages: ${pdf.numPages}`;
       
-      // Render Thumbnail Canvas
       const page = await pdf.getPage(1);
       const viewport = page.getViewport({ scale: 0.15 });
       
@@ -287,7 +338,7 @@ function initMergerTab() {
     } catch (e) {
       console.error(e);
       const pagesLabel = document.getElementById(`pages-${item.id}`);
-      if (pagesLabel) pagesLabel.textContent = 'Pages: Error';
+      if (pagesLabel) pagesLabel.textContent = 'PDF Document';
     }
   }
 
@@ -738,9 +789,10 @@ async function getOrDecryptFile(file) {
   const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
   if (!isPdf) return file;
   
-  const arrayBuffer = await fileToArrayBuffer(file);
-  const encrypted = await checkIsPDFEncrypted(arrayBuffer);
+  const encrypted = await fastCheckIsPDFFileEncrypted(file);
   if (!encrypted) return file;
+  
+  const arrayBuffer = await fileToArrayBuffer(file);
   
   return new Promise((resolve, reject) => {
     const modal = document.getElementById('global-password-modal');
