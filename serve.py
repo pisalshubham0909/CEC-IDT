@@ -434,24 +434,21 @@ def run_server():
                         prs.slide_width = Inches(10)
                         prs.slide_height = Inches(10 * (h_p / w_p) if w_p > 0 else 7.5)
 
-                        # 100% Editable Text Boxes Mode with preserved coordinates & auto-fit slide bounds
                         for page_idx in range(len(doc_pdf)):
                             page = doc_pdf[page_idx]
                             rect = page.rect
                             pw, ph = rect.width, rect.height
                             
                             slide = prs.slides.add_slide(prs.slide_layouts[6])
-                            scale_x = prs.slide_width.inches / pw if pw > 0 else 1.0
-                            scale_y = prs.slide_height.inches / ph if ph > 0 else 1.0
                             
                             blocks = page.get_text('dict')['blocks']
                             for b in blocks:
                                 if b.get('type') == 0:
                                     bbox = b.get('bbox', (0,0,100,50))
-                                    left = Inches(max(0.2, bbox[0] * scale_x))
-                                    top = Inches(max(0.2, bbox[1] * scale_y))
-                                    width = Inches(min(prs.slide_width.inches - 0.4, max(0.5, (bbox[2] - bbox[0]) * scale_x)))
-                                    height = Inches(min(prs.slide_height.inches - 0.4, max(0.3, (bbox[3] - bbox[1]) * scale_y)))
+                                    left = Inches(bbox[0] / 72.0)
+                                    top = Inches(bbox[1] / 72.0)
+                                    width = Inches(max(0.5, (bbox[2] - bbox[0]) / 72.0))
+                                    height = Inches(max(0.3, (bbox[3] - bbox[1]) / 72.0))
                                     
                                     txBox = slide.shapes.add_textbox(left, top, width, height)
                                     tf = txBox.text_frame
@@ -467,8 +464,8 @@ def run_server():
                                             if not txt: continue
                                             run = p_para.add_run()
                                             run.text = txt
-                                            size = span.get('size', 12)
-                                            run.font.size = Pt(max(8, min(60, size * scale_y * 1.1)))
+                                            size_pt = span.get('size', 12)
+                                            run.font.size = Pt(max(8, min(64, round(size_pt))))
                                             flags = span.get('flags', 0)
                                             if flags & 2: run.font.bold = True
                                             if flags & 1: run.font.italic = True
@@ -488,10 +485,10 @@ def run_server():
                                         img_stream = io.BytesIO(img_bytes)
                                         rects = page.get_image_rects(xref)
                                         for r in rects:
-                                            left = Inches(max(0.2, r.x0 * scale_x))
-                                            top = Inches(max(0.2, r.y0 * scale_y))
-                                            width = Inches(min(prs.slide_width.inches - 0.4, (r.x1 - r.x0) * scale_x))
-                                            height = Inches(min(prs.slide_height.inches - 0.4, (r.y1 - r.y0) * scale_y))
+                                            left = Inches(r.x0 / 72.0)
+                                            top = Inches(r.y0 / 72.0)
+                                            width = Inches((r.x1 - r.x0) / 72.0)
+                                            height = Inches((r.y1 - r.y0) / 72.0)
                                             slide.shapes.add_picture(img_stream, left, top, width, height)
                                 except Exception:
                                     pass
@@ -505,7 +502,7 @@ def run_server():
 
                 elif self.path == "/api/convert_word_to_pdf":
                     try:
-                        import docx
+                        import docx, html
                         from reportlab.lib.pagesizes import letter
                         from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
                         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -519,12 +516,12 @@ def run_server():
                         normal_style = styles['Normal']
                         story = []
 
-                        for p_item in doc_in.paragraphs:
+                        def _get_p_element(p_item):
                             runs_html = []
                             for r in p_item.runs:
                                 t = r.text
                                 if not t: continue
-                                t_html = t.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                                t_html = html.escape(t)
                                 if r.bold: t_html = f'<b>{t_html}</b>'
                                 if r.italic: t_html = f'<i>{t_html}</i>'
                                 if r.font.color and r.font.color.rgb:
@@ -532,10 +529,9 @@ def run_server():
                                     t_html = f'<font color="{hex_col}">{t_html}</font>'
                                 runs_html.append(t_html)
                             
-                            para_text = ''.join(runs_html) if runs_html else p_item.text
+                            para_text = ''.join(runs_html) if runs_html else html.escape(p_item.text)
                             if not para_text.strip():
-                                story.append(Spacer(1, 6))
-                                continue
+                                return Spacer(1, 6)
                             
                             align_code = 0
                             if p_item.alignment == docx.enum.text.WD_ALIGN_PARAGRAPH.CENTER: align_code = 1
@@ -550,9 +546,9 @@ def run_server():
                                 alignment=align_code,
                                 spaceAfter=6
                             )
-                            story.append(Paragraph(para_text, p_style))
+                            return Paragraph(para_text, p_style)
 
-                        for tbl_item in doc_in.tables:
+                        def _get_tbl_element(tbl_item):
                             table_data = []
                             num_cols = max([len(row.cells) for row in tbl_item.rows]) if tbl_item.rows else 1
                             col_w = usable_w / float(num_cols)
@@ -560,7 +556,7 @@ def run_server():
                             for row in tbl_item.rows:
                                 row_cells = []
                                 for cell in row.cells:
-                                    cell_text = cell.text.strip()
+                                    cell_text = html.escape(cell.text.strip())
                                     cell_p = Paragraph(cell_text, ParagraphStyle('CellP', parent=normal_style, fontSize=10, leading=13))
                                     row_cells.append(cell_p)
                                 table_data.append(row_cells)
@@ -571,14 +567,32 @@ def run_server():
                                     ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
                                     ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
                                     ('VALIGN', (0,0), (-1,-1), 'TOP'),
-                                    ('TOPPADDING', (0,0), (-1,-1), 6),
-                                    ('BOTTOMPADDING', (0,0), (-1,-1), 6),
+                                    ('TOPPADDING', (0,0), (-1,-1), 5),
+                                    ('BOTTOMPADDING', (0,0), (-1,-1), 5),
                                 ]))
-                                story.append(t)
-                                story.append(Spacer(1, 10))
+                                return t
+                            return None
+
+                        if hasattr(doc_in, 'iter_inner_content'):
+                            for item in doc_in.iter_inner_content():
+                                if isinstance(item, docx.text.paragraph.Paragraph):
+                                    story.append(_get_p_element(item))
+                                elif isinstance(item, docx.table.Table):
+                                    t_el = _get_tbl_element(item)
+                                    if t_el:
+                                        story.append(t_el)
+                                        story.append(Spacer(1, 8))
+                        else:
+                            for p_item in doc_in.paragraphs:
+                                story.append(_get_p_element(p_item))
+                            for tbl_item in doc_in.tables:
+                                t_el = _get_tbl_element(tbl_item)
+                                if t_el:
+                                    story.append(t_el)
+                                    story.append(Spacer(1, 8))
 
                         if not story:
-                            story.append(Paragraph('Document Empty', normal_style))
+                            story.append(Paragraph('Document Content Empty', normal_style))
 
                         pdf_doc.build(story)
                         self.send_api_response(out_buf.getvalue(), "application/pdf")
