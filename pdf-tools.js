@@ -374,7 +374,7 @@ async function compressPDF(file, level = 'medium', onProgress = () => {}) {
   onProgress(0.05, "Reading document bytes...");
   const arrayBuffer = await fileToArrayBuffer(file);
   
-  // Try Python Backend API first (efficient & offline-safe)
+  // Try Python Backend API first (efficient, fast, offline-safe with PyMuPDF/pypdf)
   try {
     onProgress(0.15, "Uploading to local compression engine...");
     const response = await fetch('/api/compress', {
@@ -396,78 +396,97 @@ async function compressPDF(file, level = 'medium', onProgress = () => {}) {
     console.warn("Backend compression API unavailable, using client-side fallback:", err);
   }
 
-  // Client-side fallback with cloned buffer to prevent ArrayBuffer detachment error
-  onProgress(0.1, "Initializing client-side compressor...");
-  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
-  const numPages = pdf.numPages;
-  const compressedPdf = await PDFLib.PDFDocument.create();
+  // Client-side fallback: structure & hyperlink preserving compressor using PDFLib
+  onProgress(0.2, "Initializing structure-preserving client compressor...");
   
-  // Adjusted DPI scales and quality to achieve ACTUAL compression on client-side
-  let dpiScale = 1.3; // medium (balanced)
-  let quality = 0.65;
-  
-  if (level === 'high') {
-    dpiScale = 0.9; // high compression (smallest size)
-    quality = 0.45;
-  } else if (level === 'low' || level === 'keep') {
-    dpiScale = 1.8; // low compression (high quality)
-    quality = 0.85;
-  }
-  
-  // Reuse a single canvas element to prevent browser memory leaks and tab crashes
-  const canvas = document.createElement('canvas');
-  const context = canvas.getContext('2d');
-  
-  for (let pageNum = 1; pageNum <= numPages; pageNum++) {
-    onProgress(0.1 + ((pageNum - 1) / numPages) * 0.8, `Optimizing page ${pageNum} of ${numPages}...`);
+  try {
+    const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer.slice(0), { ignoreEncryption: true });
     
-    const page = await pdf.getPage(pageNum);
-    const viewport = page.getViewport({ scale: dpiScale });
+    // Determine compression parameters
+    let maxDim = 1600;
+    let quality = 0.65;
+    if (level === 'high') {
+      maxDim = 1200;
+      quality = 0.45;
+    } else if (level === 'low' || level === 'keep') {
+      maxDim = 2400;
+      quality = 0.80;
+    }
+
+    onProgress(0.3, "Optimizing image streams & preserving hyperlinks...");
     
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    context.clearRect(0, 0, canvas.width, canvas.height);
-    
-    await page.render({
-      canvasContext: context,
-      viewport: viewport
-    }).promise;
-    
-    // Get JPEG image data using toBlob (faster and memory-efficient compared to toDataURL)
-    const imgBuffer = await new Promise((resolve, reject) => {
-      canvas.toBlob((blob) => {
-        if (!blob) {
-          reject(new Error("Canvas export failed"));
-          return;
+    // In-place image XObject stream optimization
+    const indirectObjects = pdfDoc.context.enumerateIndirectObjects();
+    const totalObjs = indirectObjects.length;
+    let processed = 0;
+
+    for (const [ref, obj] of indirectObjects) {
+      processed++;
+      if (processed % 50 === 0) {
+        onProgress(0.3 + (processed / totalObjs) * 0.4, `Scanning PDF stream objects (${processed}/${totalObjs})...`);
+      }
+
+      if (obj && obj.dict && typeof obj.dict.get === 'function') {
+        const subtype = obj.dict.get(PDFLib.PDFName.of('Subtype'));
+        if (subtype && subtype.toString() === '/Image') {
+          try {
+            const contents = obj.contents;
+            if (contents && contents.length > 500) {
+              const blob = new Blob([contents]);
+              const imgBitmap = await createImageBitmap(blob).catch(() => null);
+              if (imgBitmap) {
+                let w = imgBitmap.width;
+                let h = imgBitmap.height;
+                let scale = 1.0;
+                if (Math.max(w, h) > maxDim) {
+                  scale = maxDim / Math.max(w, h);
+                  w = Math.max(1, Math.round(w * scale));
+                  h = Math.max(1, Math.round(h * scale));
+                }
+
+                const canvas = document.createElement('canvas');
+                canvas.width = w;
+                canvas.height = h;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(imgBitmap, 0, 0, w, h);
+                imgBitmap.close();
+
+                const compressedBlob = await new Promise((resolve) => {
+                  canvas.toBlob(resolve, 'image/jpeg', quality);
+                });
+
+                if (compressedBlob) {
+                  const newBuffer = await compressedBlob.arrayBuffer();
+                  const newBytes = new Uint8Array(newBuffer);
+                  if (newBytes.length < contents.length || scale < 1.0) {
+                    obj.contents = newBytes;
+                    obj.dict.set(PDFLib.PDFName.of('Filter'), PDFLib.PDFName.of('DCTDecode'));
+                    obj.dict.set(PDFLib.PDFName.of('Width'), PDFLib.PDFNumber.of(w));
+                    obj.dict.set(PDFLib.PDFName.of('Height'), PDFLib.PDFNumber.of(h));
+                    obj.dict.delete(PDFLib.PDFName.of('DecodeParms'));
+                    obj.dict.delete(PDFLib.PDFName.of('SMask'));
+                    obj.dict.delete(PDFLib.PDFName.of('Mask'));
+                  }
+                }
+                canvas.width = 0;
+                canvas.height = 0;
+              }
+            }
+          } catch (e) {
+            // Ignore individual image stream optimization failure
+          }
         }
-        blob.arrayBuffer().then(resolve).catch(reject);
-      }, 'image/jpeg', quality);
-    });
-    
-    const embeddedImage = await compressedPdf.embedJpg(imgBuffer);
-    
-    // Target dimensions at scale 1.0 (original dimensions in points)
-    const wPoints = viewport.width / dpiScale;
-    const hPoints = viewport.height / dpiScale;
-    const newPage = compressedPdf.addPage([wPoints, hPoints]);
-    
-    newPage.drawImage(embeddedImage, {
-      x: 0,
-      y: 0,
-      width: wPoints,
-      height: hPoints
-    });
+      }
+    }
+
+    onProgress(0.8, "Consolidating object streams & saving PDF...");
+    const compressedBytes = await pdfDoc.save({ useObjectStreams: true, addDefaultPage: false });
+    onProgress(1.0, "Optimization complete!");
+    return compressedBytes;
+  } catch (fallbackErr) {
+    console.warn("Client-side structural compression encountered error, returning original bytes:", fallbackErr);
+    return new Uint8Array(arrayBuffer);
   }
-  
-  // Clear canvas memory references
-  canvas.width = 0;
-  canvas.height = 0;
-  
-  onProgress(0.95, "Consolidating stream objects...");
-  const compressedBytes = await compressedPdf.save({ useObjectStreams: true });
-  onProgress(1.0, "Optimization complete!");
-  return compressedBytes;
 }
 
 /**

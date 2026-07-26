@@ -186,33 +186,96 @@ def run_server():
                     level = self.headers.get('X-Level', 'medium')
                     res_bytes = body
                     try:
-                        if HAS_PDFIUM:
-                            from PIL import Image
-                            pdf = pdfium.PdfDocument(body)
-                            scale = 1.1
-                            quality = 50
-                            if level == 'high':
-                                scale = 0.8
-                                quality = 35
-                            elif level == 'low' or level == 'keep':
-                                scale = 1.4
-                                quality = 70
+                        try:
+                            import fitz
+                            HAS_FITZ = True
+                        except ImportError:
+                            HAS_FITZ = False
 
-                            images = [page.render(scale=scale).to_pil() for page in pdf]
-                            pdf.close()
-                            if images:
-                                out_buf = io.BytesIO()
-                                images[0].save(out_buf, format='PDF', save_all=True, append_images=images[1:], quality=quality, optimize=True)
-                                comp_bytes = out_buf.getvalue()
-                                if len(comp_bytes) < len(body):
-                                    res_bytes = comp_bytes
+                        if HAS_FITZ:
+                            doc = fitz.open(stream=body, filetype="pdf")
+                            if level == 'high':
+                                max_dim = 1200
+                                quality = 45
+                            elif level == 'low' or level == 'keep':
+                                max_dim = 2400
+                                quality = 80
+                            else: # medium
+                                max_dim = 1600
+                                quality = 65
+
+                            from PIL import Image
+                            for page in doc:
+                                for img_info in page.get_images(full=True):
+                                    xref = img_info[0]
+                                    try:
+                                        base_image = doc.extract_image(xref)
+                                        if base_image:
+                                            image_bytes = base_image.get("image")
+                                            if image_bytes:
+                                                pil_img = Image.open(io.BytesIO(image_bytes))
+                                                w, h = pil_img.size
+                                                scale = 1.0
+                                                if max(w, h) > max_dim:
+                                                    scale = max_dim / float(max(w, h))
+                                                    new_w, new_h = max(1, int(w * scale)), max(1, int(h * scale))
+                                                    pil_img = pil_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+                                                if pil_img.mode not in ('RGB', 'L'):
+                                                    pil_img = pil_img.convert('RGB')
+                                                out_b = io.BytesIO()
+                                                pil_img.save(out_b, format='JPEG', quality=quality, optimize=True)
+                                                new_bytes = out_b.getvalue()
+                                                if len(new_bytes) < len(image_bytes) or scale < 1.0:
+                                                    doc.update_stream(xref, new_bytes)
+                                    except Exception:
+                                        pass
+
+                            comp_bytes = doc.tobytes(garbage=4, deflate=True, clean=True, deflate_images=True, deflate_fonts=True)
+                            if len(comp_bytes) < len(body):
+                                res_bytes = comp_bytes
+                            else:
+                                res_bytes = comp_bytes
                         else:
                             reader = PdfReader(io.BytesIO(body), strict=False)
                             writer = PdfWriter()
                             writer.append(reader)
-                            writer.compress_identical_objects(remove_duplicates=True, remove_unreferenced=True)
+
+                            if level == 'high':
+                                max_dim = 1200
+                                quality = 45
+                            elif level == 'low' or level == 'keep':
+                                max_dim = 2400
+                                quality = 80
+                            else: # medium
+                                max_dim = 1600
+                                quality = 65
+
+                            from PIL import Image
                             for page in writer.pages:
                                 page.compress_content_streams()
+                                try:
+                                    for img_file in page.images:
+                                        try:
+                                            pil_img = img_file.image
+                                            w, h = pil_img.size
+                                            scale = 1.0
+                                            if max(w, h) > max_dim:
+                                                scale = max_dim / float(max(w, h))
+                                                new_w, new_h = max(1, int(w * scale)), max(1, int(h * scale))
+                                                pil_img = pil_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
+                                            if pil_img.mode not in ('RGB', 'L'):
+                                                pil_img = pil_img.convert('RGB')
+                                            out_b = io.BytesIO()
+                                            pil_img.save(out_b, format='JPEG', quality=quality, optimize=True)
+                                            new_b = out_b.getvalue()
+                                            if len(new_b) < len(img_file.data) or scale < 1.0:
+                                                img_file.replace(pil_img, quality=quality)
+                                        except Exception:
+                                            pass
+                                except Exception:
+                                    pass
+
+                            writer.compress_identical_objects(remove_duplicates=True, remove_unreferenced=True)
                             out_buffer = io.BytesIO()
                             writer.write(out_buffer)
                             comp_bytes = out_buffer.getvalue()
