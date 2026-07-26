@@ -289,133 +289,127 @@ def run_server():
                     
                 elif self.path == "/api/convert_pdf_to_word":
                     try:
-                        mode = self.headers.get('X-Mode', 'layout').lower()
-                        doc_pdf = fitz.open('pdf', body)
+                        with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as f_pdf:
+                            f_pdf.write(body)
+                            pdf_path = f_pdf.name
+                        docx_path = pdf_path.replace('.pdf', '.docx')
+                        
+                        try:
+                            from pdf2docx import Converter
+                            cv = Converter(pdf_path)
+                            cv.convert(docx_path, start=0, end=None)
+                            cv.close()
+                            with open(docx_path, 'rb') as f_docx:
+                                res_docx = f_docx.read()
+                        except Exception as p2d_err:
+                            print(f"pdf2docx note: {p2d_err}, using PyMuPDF + python-docx editable table fallback")
+                            import fitz, docx
+                            from docx.shared import Pt, Inches, RGBColor
+                            from docx.oxml import parse_xml
+                            from docx.oxml.ns import nsdecls
 
-                        if mode == 'layout':
-                            # 100% Visual Precision Mode (GSTR-1, GSTR-3B, Invoices, GST Notices)
+                            def _set_cell_bg(cell, fill_hex):
+                                tcPr = cell._tc.get_or_add_tcPr()
+                                shd = parse_xml(f'<w:shd {nsdecls("w")} w:fill="{fill_hex}"/>')
+                                tcPr.append(shd)
+
+                            def _set_tbl_borders(table):
+                                tblPr = table._tbl.tblPr
+                                borders = parse_xml(
+                                    f'<w:tblBorders {nsdecls("w")}>'
+                                    f'<w:top w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>'
+                                    f'<w:bottom w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>'
+                                    f'<w:left w:val="none"/>'
+                                    f'<w:right w:val="none"/>'
+                                    f'<w:insideH w:val="single" w:sz="4" w:space="0" w:color="E5E7EB"/>'
+                                    f'<w:insideV w:val="none"/>'
+                                    f'</w:tblBorders>'
+                                )
+                                tblPr.append(borders)
+
+                            doc_pdf = fitz.open('pdf', body)
                             doc_word = docx.Document()
+                            
                             for page_idx in range(len(doc_pdf)):
                                 p = doc_pdf[page_idx]
-                                pix = p.get_pixmap(dpi=200)
-                                img_bytes = pix.tobytes('png')
-                                img_stream = io.BytesIO(img_bytes)
+                                rect = p.rect
+                                pw, ph = rect.width, rect.height
                                 
-                                section = doc_word.sections[-1] if page_idx == 0 else doc_word.add_section()
-                                section.top_margin = docx.shared.Inches(0.4)
-                                section.bottom_margin = docx.shared.Inches(0.4)
-                                section.left_margin = docx.shared.Inches(0.4)
-                                section.right_margin = docx.shared.Inches(0.4)
+                                # Set page dimensions to fit original PDF page layout
+                                section = doc_word.sections[0] if page_idx == 0 else doc_word.add_section()
+                                section.page_width = Inches(pw / 72.0)
+                                section.page_height = Inches(ph / 72.0)
+                                section.top_margin = Inches(0.4)
+                                section.bottom_margin = Inches(0.4)
+                                section.left_margin = Inches(0.4)
+                                section.right_margin = Inches(0.4)
                                 
-                                doc_word.add_picture(img_stream, width=docx.shared.Inches(7.5))
-                            
+                                printable_w = (pw / 72.0) - 0.8
+                                words = p.get_text('words')
+                                
+                                if words:
+                                    line_dict = {}
+                                    for w in words:
+                                        y_approx = round(w[1] / 6.0) * 6.0
+                                        line_dict.setdefault(y_approx, []).append(w)
+                                    
+                                    sorted_y = sorted(line_dict.keys())
+                                    table_rows_buffer = []
+                                    
+                                    def _flush_tbl(word_doc, rows_buf, p_w):
+                                        if not rows_buf: return
+                                        max_cols = max(len(r) for r in rows_buf)
+                                        tbl = word_doc.add_table(rows=len(rows_buf), cols=max_cols)
+                                        tbl.autofit = True
+                                        _set_tbl_borders(tbl)
+                                        
+                                        col_w = Inches(max(0.5, p_w / float(max_cols)))
+                                        for r_i, row_items in enumerate(rows_buf):
+                                            is_header = (r_i == 0)
+                                            for c_i, cell_text in enumerate(row_items):
+                                                if c_i < max_cols:
+                                                    cell = tbl.cell(r_i, c_i)
+                                                    cell.width = col_w
+                                                    cell.text = cell_text
+                                                    if is_header:
+                                                        _set_cell_bg(cell, '0284C7')
+                                                        p_c = cell.paragraphs[0]
+                                                        for run in p_c.runs:
+                                                            run.font.bold = True
+                                                            run.font.color.rgb = RGBColor(255, 255, 255)
+                                        word_doc.add_paragraph()
+                                        rows_buf.clear()
+
+                                    for y in sorted_y:
+                                        line_words = sorted(line_dict[y], key=lambda item: item[0])
+                                        cols = []
+                                        curr_col = [line_words[0][4]]
+                                        for i in range(1, len(line_words)):
+                                            gap = line_words[i][0] - line_words[i-1][2]
+                                            if gap > 18:
+                                                cols.append(' '.join(curr_col))
+                                                curr_col = [line_words[i][4]]
+                                            else:
+                                                curr_col.append(line_words[i][4])
+                                        cols.append(' '.join(curr_col))
+                                        
+                                        if len(cols) > 1:
+                                            table_rows_buffer.append(cols)
+                                        else:
+                                            _flush_tbl(doc_word, table_rows_buffer, printable_w)
+                                            doc_word.add_paragraph(' '.join(cols))
+                                            
+                                    _flush_tbl(doc_word, table_rows_buffer, printable_w)
+
+                                if page_idx < len(doc_pdf) - 1:
+                                    doc_word.add_page_break()
+
                             out_b = io.BytesIO()
                             doc_word.save(out_b)
                             res_docx = out_b.getvalue()
-                        else:
-                            # Editable Text & Multi-Column Table Mode
-                            with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as f_pdf:
-                                f_pdf.write(body)
-                                pdf_path = f_pdf.name
-                            docx_path = pdf_path.replace('.pdf', '.docx')
-                            try:
-                                from pdf2docx import Converter
-                                cv = Converter(pdf_path)
-                                cv.convert(docx_path, start=0, end=None)
-                                cv.close()
-                                with open(docx_path, 'rb') as f_docx:
-                                    res_docx = f_docx.read()
-                            except Exception as p2d_err:
-                                print(f"pdf2docx note: {p2d_err}, using PyMuPDF + python-docx table fallback")
-                                import docx
-                                from docx.shared import Pt, RGBColor
-                                from docx.oxml import parse_xml
-                                from docx.oxml.ns import nsdecls
-
-                                def _set_cell_bg(cell, fill_hex):
-                                    tcPr = cell._tc.get_or_add_tcPr()
-                                    shd = parse_xml(f'<w:shd {nsdecls("w")} w:fill="{fill_hex}"/>')
-                                    tcPr.append(shd)
-
-                                def _set_tbl_borders(table):
-                                    tblPr = table._tbl.tblPr
-                                    borders = parse_xml(
-                                        f'<w:tblBorders {nsdecls("w")}>'
-                                        f'<w:top w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>'
-                                        f'<w:bottom w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>'
-                                        f'<w:left w:val="none"/>'
-                                        f'<w:right w:val="none"/>'
-                                        f'<w:insideH w:val="single" w:sz="4" w:space="0" w:color="E5E7EB"/>'
-                                        f'<w:insideV w:val="none"/>'
-                                        f'</w:tblBorders>'
-                                    )
-                                    tblPr.append(borders)
-
-                                doc_word = docx.Document()
-                                for page_idx in range(len(doc_pdf)):
-                                    p = doc_pdf[page_idx]
-                                    words = p.get_text('words')
-                                    
-                                    if words:
-                                        line_dict = {}
-                                        for w in words:
-                                            y_approx = round(w[1] / 6.0) * 6.0
-                                            line_dict.setdefault(y_approx, []).append(w)
-                                        
-                                        sorted_y = sorted(line_dict.keys())
-                                        table_rows_buffer = []
-                                        
-                                        def _flush_tbl(word_doc, rows_buf):
-                                            if not rows_buf: return
-                                            max_cols = max(len(r) for r in rows_buf)
-                                            tbl = word_doc.add_table(rows=len(rows_buf), cols=max_cols)
-                                            _set_tbl_borders(tbl)
-                                            
-                                            for r_i, row_items in enumerate(rows_buf):
-                                                is_header = (r_i == 0)
-                                                for c_i, cell_text in enumerate(row_items):
-                                                    if c_i < max_cols:
-                                                        cell = tbl.cell(r_i, c_i)
-                                                        cell.text = cell_text
-                                                        if is_header:
-                                                            _set_cell_bg(cell, '0284C7')
-                                                            p_c = cell.paragraphs[0]
-                                                            for run in p_c.runs:
-                                                                run.font.bold = True
-                                                                run.font.color.rgb = RGBColor(255, 255, 255)
-                                            word_doc.add_paragraph()
-                                            rows_buf.clear()
-
-                                        for y in sorted_y:
-                                            line_words = sorted(line_dict[y], key=lambda item: item[0])
-                                            cols = []
-                                            curr_col = [line_words[0][4]]
-                                            for i in range(1, len(line_words)):
-                                                gap = line_words[i][0] - line_words[i-1][2]
-                                                if gap > 18:
-                                                    cols.append(' '.join(curr_col))
-                                                    curr_col = [line_words[i][4]]
-                                                else:
-                                                    curr_col.append(line_words[i][4])
-                                            cols.append(' '.join(curr_col))
-                                            
-                                            if len(cols) > 1:
-                                                table_rows_buffer.append(cols)
-                                            else:
-                                                _flush_tbl(doc_word, table_rows_buffer)
-                                                doc_word.add_paragraph(' '.join(cols))
-                                                
-                                        _flush_tbl(doc_word, table_rows_buffer)
-
-                                    if page_idx < len(doc_pdf) - 1:
-                                        doc_word.add_page_break()
-
-                                out_b = io.BytesIO()
-                                doc_word.save(out_b)
-                                res_docx = out_b.getvalue()
-                            finally:
-                                if os.path.exists(pdf_path): os.remove(pdf_path)
-                                if os.path.exists(docx_path): os.remove(docx_path)
+                        finally:
+                            if os.path.exists(pdf_path): os.remove(pdf_path)
+                            if os.path.exists(docx_path): os.remove(docx_path)
                             
                         self.send_api_response(res_docx, "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
                     except Exception as conv_err:
@@ -424,7 +418,6 @@ def run_server():
 
                 elif self.path == "/api/convert_pdf_to_pptx":
                     try:
-                        mode = self.headers.get('X-Mode', 'layout').lower()
                         import fitz
                         from pptx import Presentation
                         from pptx.util import Inches, Pt
@@ -441,60 +434,50 @@ def run_server():
                         prs.slide_width = Inches(10)
                         prs.slide_height = Inches(10 * (h_p / w_p) if w_p > 0 else 7.5)
 
-                        if mode == 'layout':
-                            # 100% Visual Precision Layout Mode
-                            for page_idx in range(len(doc_pdf)):
-                                p = doc_pdf[page_idx]
-                                pix = p.get_pixmap(dpi=200)
-                                img_bytes = pix.tobytes('png')
-                                img_stream = io.BytesIO(img_bytes)
-                                slide = prs.slides.add_slide(prs.slide_layouts[6])
-                                slide.shapes.add_picture(img_stream, Inches(0), Inches(0), prs.slide_width, prs.slide_height)
-                        else:
-                            # Editable Text Boxes Mode
-                            for page_idx in range(len(doc_pdf)):
-                                page = doc_pdf[page_idx]
-                                rect = page.rect
-                                pw, ph = rect.width, rect.height
-                                
-                                slide = prs.slides.add_slide(prs.slide_layouts[6])
-                                scale_x = prs.slide_width.inches / pw if pw > 0 else 1.0
-                                scale_y = prs.slide_height.inches / ph if ph > 0 else 1.0
-                                
-                                blocks = page.get_text('dict')['blocks']
-                                for b in blocks:
-                                    if b.get('type') == 0:
-                                        bbox = b.get('bbox', (0,0,100,50))
-                                        left = Inches(bbox[0] * scale_x)
-                                        top = Inches(bbox[1] * scale_y)
-                                        width = Inches(max(0.5, (bbox[2] - bbox[0]) * scale_x))
-                                        height = Inches(max(0.3, (bbox[3] - bbox[1]) * scale_y))
-                                        
-                                        txBox = slide.shapes.add_textbox(left, top, width, height)
-                                        tf = txBox.text_frame
-                                        tf.word_wrap = True
-                                        tf.margin_left = tf.margin_top = tf.margin_right = tf.margin_bottom = 0
-                                        
-                                        para_idx = 0
-                                        for line in b.get('lines', []):
-                                            p_para = tf.paragraphs[0] if para_idx == 0 else tf.add_paragraph()
-                                            para_idx += 1
-                                            for span in line.get('spans', []):
-                                                txt = span.get('text', '')
-                                                if not txt: continue
-                                                run = p_para.add_run()
-                                                run.text = txt
-                                                size = span.get('size', 12)
-                                                run.font.size = Pt(max(8, min(60, size * scale_y * 1.1)))
-                                                flags = span.get('flags', 0)
-                                                if flags & 2: run.font.bold = True
-                                                if flags & 1: run.font.italic = True
-                                                color_int = span.get('color', 0)
-                                                if color_int != 0:
-                                                    r = (color_int >> 16) & 0xFF
-                                                    g = (color_int >> 8) & 0xFF
-                                                    b_c = color_int & 0xFF
-                                                    run.font.color.rgb = RGBColor(r, g, b_c)
+                        # 100% Editable Text Boxes Mode with preserved coordinates & auto-fit slide bounds
+                        for page_idx in range(len(doc_pdf)):
+                            page = doc_pdf[page_idx]
+                            rect = page.rect
+                            pw, ph = rect.width, rect.height
+                            
+                            slide = prs.slides.add_slide(prs.slide_layouts[6])
+                            scale_x = prs.slide_width.inches / pw if pw > 0 else 1.0
+                            scale_y = prs.slide_height.inches / ph if ph > 0 else 1.0
+                            
+                            blocks = page.get_text('dict')['blocks']
+                            for b in blocks:
+                                if b.get('type') == 0:
+                                    bbox = b.get('bbox', (0,0,100,50))
+                                    left = Inches(max(0.2, bbox[0] * scale_x))
+                                    top = Inches(max(0.2, bbox[1] * scale_y))
+                                    width = Inches(min(prs.slide_width.inches - 0.4, max(0.5, (bbox[2] - bbox[0]) * scale_x)))
+                                    height = Inches(min(prs.slide_height.inches - 0.4, max(0.3, (bbox[3] - bbox[1]) * scale_y)))
+                                    
+                                    txBox = slide.shapes.add_textbox(left, top, width, height)
+                                    tf = txBox.text_frame
+                                    tf.word_wrap = True
+                                    tf.margin_left = tf.margin_top = tf.margin_right = tf.margin_bottom = 0
+                                    
+                                    para_idx = 0
+                                    for line in b.get('lines', []):
+                                        p_para = tf.paragraphs[0] if para_idx == 0 else tf.add_paragraph()
+                                        para_idx += 1
+                                        for span in line.get('spans', []):
+                                            txt = span.get('text', '')
+                                            if not txt: continue
+                                            run = p_para.add_run()
+                                            run.text = txt
+                                            size = span.get('size', 12)
+                                            run.font.size = Pt(max(8, min(60, size * scale_y * 1.1)))
+                                            flags = span.get('flags', 0)
+                                            if flags & 2: run.font.bold = True
+                                            if flags & 1: run.font.italic = True
+                                            color_int = span.get('color', 0)
+                                            if color_int != 0:
+                                                r = (color_int >> 16) & 0xFF
+                                                g = (color_int >> 8) & 0xFF
+                                                b_c = color_int & 0xFF
+                                                run.font.color.rgb = RGBColor(r, g, b_c)
                                                 
                             for img_info in page.get_images(full=True):
                                 xref = img_info[0]
@@ -505,10 +488,10 @@ def run_server():
                                         img_stream = io.BytesIO(img_bytes)
                                         rects = page.get_image_rects(xref)
                                         for r in rects:
-                                            left = Inches(r.x0 * scale_x)
-                                            top = Inches(r.y0 * scale_y)
-                                            width = Inches((r.x1 - r.x0) * scale_x)
-                                            height = Inches((r.y1 - r.y0) * scale_y)
+                                            left = Inches(max(0.2, r.x0 * scale_x))
+                                            top = Inches(max(0.2, r.y0 * scale_y))
+                                            width = Inches(min(prs.slide_width.inches - 0.4, (r.x1 - r.x0) * scale_x))
+                                            height = Inches(min(prs.slide_height.inches - 0.4, (r.y1 - r.y0) * scale_y))
                                             slide.shapes.add_picture(img_stream, left, top, width, height)
                                 except Exception:
                                     pass
@@ -530,7 +513,8 @@ def run_server():
 
                         doc_in = docx.Document(io.BytesIO(body))
                         out_buf = io.BytesIO()
-                        pdf_doc = SimpleDocTemplate(out_buf, pagesize=letter, leftMargin=54, rightMargin=54, topMargin=54, bottomMargin=54)
+                        pdf_doc = SimpleDocTemplate(out_buf, pagesize=letter, leftMargin=36, rightMargin=36, topMargin=36, bottomMargin=36)
+                        usable_w = 612 - 72 # 540 pt
                         styles = getSampleStyleSheet()
                         normal_style = styles['Normal']
                         story = []
@@ -570,6 +554,9 @@ def run_server():
 
                         for tbl_item in doc_in.tables:
                             table_data = []
+                            num_cols = max([len(row.cells) for row in tbl_item.rows]) if tbl_item.rows else 1
+                            col_w = usable_w / float(num_cols)
+                            
                             for row in tbl_item.rows:
                                 row_cells = []
                                 for cell in row.cells:
@@ -578,7 +565,7 @@ def run_server():
                                     row_cells.append(cell_p)
                                 table_data.append(row_cells)
                             if table_data:
-                                t = Table(table_data)
+                                t = Table(table_data, colWidths=[col_w] * num_cols)
                                 t.setStyle(TableStyle([
                                     ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0284c7')),
                                     ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),

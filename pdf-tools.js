@@ -909,158 +909,128 @@ async function pdfToWord(file, mode = 'layout', onProgress = () => {}) {
     console.warn("Backend PDF to Word conversion unavailable, using client fallback:", err);
   }
 
-  // Client Fallback
+  // Client Fallback: Extract 100% Editable Text Streams & Tables
+  onProgress(0.2, "Parsing structured text elements & table rows...");
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
   const pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
   const numPages = pdf.numPages;
   const docChildren = [];
 
-  if (mode === 'layout') {
-    onProgress(0.2, "Preserving 100% exact visual layout...");
-    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
-      onProgress(0.2 + ((pageNum - 1) / numPages) * 0.7, `Rendering exact page layout ${pageNum} of ${numPages}...`);
-      const page = await pdf.getPage(pageNum);
-      const viewport = page.getViewport({ scale: 2.0 });
-      const canvas = document.createElement('canvas');
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      const ctx = canvas.getContext('2d');
-      await page.render({ canvasContext: ctx, viewport }).promise;
-      
-      const imgDataUrl = canvas.toDataURL('image/png');
-      const base64Data = imgDataUrl.split(',')[1];
-      const imageBytes = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
-      
-      docChildren.push(new docx.Paragraph({
-        children: [
-          new docx.ImageRun({
-            data: imageBytes,
-            transformation: { width: 595, height: 842 }
+  function flushTableBuffer(docChildren, rowsBuf) {
+    if (!rowsBuf || rowsBuf.length === 0) return;
+    const maxCols = Math.max(...rowsBuf.map(r => r.length));
+    
+    const tableRows = rowsBuf.map((rowCells, rIdx) => {
+      const isHeader = (rIdx === 0);
+      const cells = [];
+      for (let cIdx = 0; cIdx < maxCols; cIdx++) {
+        const cellText = rowCells[cIdx] || '';
+        cells.push(
+          new docx.TableCell({
+            children: [
+              new docx.Paragraph({
+                children: [
+                  new docx.TextRun({
+                    text: cellText,
+                    font: "Arial",
+                    size: isHeader ? 22 : 20,
+                    bold: isHeader,
+                    color: isHeader ? "FFFFFF" : "1F2937"
+                  })
+                ],
+                spacing: { before: 40, after: 40 }
+              })
+            ],
+            shading: isHeader ? { fill: "0284C7" } : undefined,
+            margins: { top: 80, bottom: 80, left: 120, right: 120 }
           })
-        ]
-      }));
-      if (pageNum < numPages) {
-        docChildren.push(new docx.Paragraph({ children: [new docx.PageBreak()] }));
+        );
       }
-    }
-  } else {
-    onProgress(0.2, "Parsing structured text elements & table rows...");
-    function flushTableBuffer(docChildren, rowsBuf) {
-      if (!rowsBuf || rowsBuf.length === 0) return;
-      const maxCols = Math.max(...rowsBuf.map(r => r.length));
-      
-      const tableRows = rowsBuf.map((rowCells, rIdx) => {
-        const isHeader = (rIdx === 0);
-        const cells = [];
-        for (let cIdx = 0; cIdx < maxCols; cIdx++) {
-          const cellText = rowCells[cIdx] || '';
-          cells.push(
-            new docx.TableCell({
-              children: [
-                new docx.Paragraph({
-                  children: [
-                    new docx.TextRun({
-                      text: cellText,
-                      font: "Arial",
-                      size: isHeader ? 22 : 20,
-                      bold: isHeader,
-                      color: isHeader ? "FFFFFF" : "1F2937"
-                    })
-                  ],
-                  spacing: { before: 40, after: 40 }
-                })
-              ],
-              shading: isHeader ? { fill: "0284C7" } : undefined,
-              margins: { top: 80, bottom: 80, left: 120, right: 120 }
-            })
-          );
+      return new docx.TableRow({ children: cells });
+    });
+
+    docChildren.push(new docx.Table({
+      rows: tableRows,
+      width: { size: 100, type: docx.WidthType.PERCENTAGE }
+    }));
+    docChildren.push(new docx.Paragraph({ spacing: { after: 120 } }));
+    rowsBuf.length = 0;
+  }
+
+  for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+    onProgress(0.2 + ((pageNum - 1) / numPages) * 0.7, `Extracting text & table structure page ${pageNum} of ${numPages}...`);
+    const page = await pdf.getPage(pageNum);
+    const textContent = await page.getTextContent();
+    
+    const items = textContent.items.map(item => ({
+      str: item.str,
+      x: item.transform[4],
+      y: item.transform[5],
+      height: Math.round(item.height || 12)
+    }));
+
+    const lineThreshold = 6;
+    let lines = [];
+    items.forEach(item => {
+      let added = false;
+      for (let line of lines) {
+        if (Math.abs(line.y - item.y) < lineThreshold) {
+          line.items.push(item);
+          added = true;
+          break;
         }
-        return new docx.TableRow({ children: cells });
-      });
-
-      docChildren.push(new docx.Table({
-        rows: tableRows,
-        width: { size: 100, type: docx.WidthType.PERCENTAGE }
-      }));
-      docChildren.push(new docx.Paragraph({ spacing: { after: 120 } }));
-      rowsBuf.length = 0;
-    }
-
-    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
-      onProgress(0.2 + ((pageNum - 1) / numPages) * 0.7, `Extracting text & table structure page ${pageNum} of ${numPages}...`);
-      const page = await pdf.getPage(pageNum);
-      const textContent = await page.getTextContent();
-      
-      const items = textContent.items.map(item => ({
-        str: item.str,
-        x: item.transform[4],
-        y: item.transform[5],
-        height: Math.round(item.height || 12)
-      }));
-
-      const lineThreshold = 6;
-      let lines = [];
-      items.forEach(item => {
-        let added = false;
-        for (let line of lines) {
-          if (Math.abs(line.y - item.y) < lineThreshold) {
-            line.items.push(item);
-            added = true;
-            break;
-          }
-        }
-        if (!added) {
-          lines.push({ y: item.y, items: [item], height: item.height });
-        }
-      });
-
-      lines.sort((a, b) => b.y - a.y);
-      const tableRowsBuffer = [];
-
-      lines.forEach(line => {
-        line.items.sort((a, b) => a.x - b.x);
-        const cols = [];
-        let currCol = [line.items[0].str];
-        for (let i = 1; i < line.items.length; i++) {
-          const gap = line.items[i].x - (line.items[i-1].x + (line.items[i-1].str.length * 5));
-          if (gap > 18) {
-            cols.push(currCol.join(' '));
-            currCol = [line.items[i].str];
-          } else {
-            currCol.push(line.items[i].str);
-          }
-        }
-        cols.push(currCol.join(' '));
-
-        const lineStr = cols.join(' ');
-        if (lineStr.trim()) {
-          if (cols.length > 1) {
-            tableRowsBuffer.push(cols);
-          } else {
-            flushTableBuffer(docChildren, tableRowsBuffer);
-            const isHeader = line.height > 14;
-            docChildren.push(new docx.Paragraph({
-              children: [
-                new docx.TextRun({
-                  text: lineStr,
-                  font: "Arial",
-                  size: isHeader ? 28 : 22,
-                  bold: isHeader
-                })
-              ],
-              spacing: { after: isHeader ? 140 : 80 }
-            }));
-          }
-        }
-      });
-
-      flushTableBuffer(docChildren, tableRowsBuffer);
-
-      if (pageNum < numPages) {
-        docChildren.push(new docx.Paragraph({
-          children: [new docx.PageBreak()]
-        }));
       }
+      if (!added) {
+        lines.push({ y: item.y, items: [item], height: item.height });
+      }
+    });
+
+    lines.sort((a, b) => b.y - a.y);
+    const tableRowsBuffer = [];
+
+    lines.forEach(line => {
+      line.items.sort((a, b) => a.x - b.x);
+      const cols = [];
+      let currCol = [line.items[0].str];
+      for (let i = 1; i < line.items.length; i++) {
+        const gap = line.items[i].x - (line.items[i-1].x + (line.items[i-1].str.length * 5));
+        if (gap > 18) {
+          cols.push(currCol.join(' '));
+          currCol = [line.items[i].str];
+        } else {
+          currCol.push(line.items[i].str);
+        }
+      }
+      cols.push(currCol.join(' '));
+
+      const lineStr = cols.join(' ');
+      if (lineStr.trim()) {
+        if (cols.length > 1) {
+          tableRowsBuffer.push(cols);
+        } else {
+          flushTableBuffer(docChildren, tableRowsBuffer);
+          const isHeader = line.height > 14;
+          docChildren.push(new docx.Paragraph({
+            children: [
+              new docx.TextRun({
+                text: lineStr,
+                font: "Arial",
+                size: isHeader ? 28 : 22,
+                bold: isHeader
+              })
+            ],
+            spacing: { after: isHeader ? 140 : 80 }
+          }));
+        }
+      }
+    });
+
+    flushTableBuffer(docChildren, tableRowsBuffer);
+
+    if (pageNum < numPages) {
+      docChildren.push(new docx.Paragraph({
+        children: [new docx.PageBreak()]
+      }));
     }
   }
 
