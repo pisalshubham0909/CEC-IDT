@@ -1143,14 +1143,14 @@ async function pdfToPPTX(file, outputName = "Presentation.pptx", onProgress = ()
         const firstIt = line.items[0];
         const x = firstIt.transform[4] * scaleX;
         const y = (ph - firstIt.transform[5]) * scaleY;
-        const fontSize = Math.max(10, Math.round((firstIt.height || 12) * scaleY * 72));
+        const fontPt = Math.max(10, Math.min(48, Math.round(firstIt.height || 12)));
         
         slide.addText(lineStr, {
           x: Math.max(0.3, x),
           y: Math.max(0.3, y),
-          w: Math.min(9.4, 8.0),
-          h: 0.6,
-          fontSize: Math.min(36, fontSize),
+          w: Math.min(9.4, 8.5),
+          h: 0.5,
+          fontSize: fontPt,
           fontFace: 'Arial',
           color: '1F2937'
         });
@@ -1192,30 +1192,32 @@ async function wordToPDF(file, outputName = "Document.pdf", onProgress = () => {
   // Client-Side Fallback: Render vector layout PDF
   onProgress(0.3, "Parsing Word contents...");
   const result = await mammoth.convertToHtml({ arrayBuffer: arrayBuffer });
-  const htmlContent = result.value;
+  const htmlContent = result.value || '<p>Document Content</p>';
 
   onProgress(0.6, "Formatting document layout...");
   const printDiv = document.createElement('div');
   printDiv.id = 'temp-word-print-element';
-  printDiv.style.position = 'absolute';
-  printDiv.style.left = '-9999px';
-  printDiv.style.top = '-9999px';
+  printDiv.style.position = 'fixed';
+  printDiv.style.left = '0';
+  printDiv.style.top = '0';
   printDiv.style.width = '750px';
-  printDiv.style.padding = '40px';
+  printDiv.style.padding = '30px';
   printDiv.style.color = '#000000';
   printDiv.style.background = '#ffffff';
   printDiv.style.fontFamily = 'Arial, sans-serif';
   printDiv.style.lineHeight = '1.6';
   printDiv.style.fontSize = '14px';
+  printDiv.style.zIndex = '-9999';
+  printDiv.style.opacity = '0.99';
   printDiv.innerHTML = htmlContent;
   document.body.appendChild(printDiv);
 
   onProgress(0.8, "Compiling PDF document...");
   const opt = {
-    margin: 15,
+    margin: 10,
     filename: outputName,
     image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 3, useCORS: true, logging: false },
+    html2canvas: { scale: 2, useCORS: true, logging: false },
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
   };
 
