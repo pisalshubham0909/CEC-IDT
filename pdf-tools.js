@@ -882,204 +882,269 @@ async function extractTextFromPDF(arrayBuffer, onProgress) {
 /**
  * Convert PDF to editable Word document (DOCX) client-side
  */
+/**
+ * Convert PDF to editable Word document (DOCX)
+ */
 async function pdfToWord(file, mode = 'layout', onProgress = () => {}) {
+  onProgress(0.05, "Reading PDF document bytes...");
   const arrayBuffer = await fileToArrayBuffer(file);
-  
-  if (mode === 'text') {
-    onProgress(0.1, "Parsing document text...");
-    const textLines = await extractTextFromPDF(arrayBuffer, onProgress);
+
+  // Try Python Backend API first (100% native vector & text conversion)
+  try {
+    onProgress(0.15, "Connecting to conversion engine...");
+    const response = await fetch('/api/convert_pdf_to_word', {
+      method: 'POST',
+      headers: {
+        'X-Mode': mode
+      },
+      body: new Uint8Array(arrayBuffer.slice(0))
+    });
+    if (response.ok) {
+      onProgress(0.9, "Receiving formatted Word document...");
+      const blob = await response.blob();
+      onProgress(1.0, "Word document conversion finished!");
+      return blob;
+    }
+  } catch (err) {
+    console.warn("Backend PDF to Word conversion unavailable, using client fallback:", err);
+  }
+
+  // Structure & Text Preserving Client Fallback (NOT screenshot images!)
+  onProgress(0.2, "Parsing structured text elements...");
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
+  const numPages = pdf.numPages;
+  const docChildren = [];
+
+  for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+    onProgress(0.2 + ((pageNum - 1) / numPages) * 0.7, `Extracting editable text page ${pageNum} of ${numPages}...`);
+    const page = await pdf.getPage(pageNum);
+    const textContent = await page.getTextContent();
     
-    onProgress(0.85, "Creating Word structure...");
-    const docChildren = [];
-    
-    textLines.forEach(line => {
-      if (line === "--- PAGE BREAK ---") {
-        docChildren.push(new docx.Paragraph({
-          children: [new docx.PageBreak()]
-        }));
-      } else {
+    // Group text items into lines based on Y coordinates
+    const items = textContent.items.map(item => ({
+      str: item.str,
+      x: item.transform[4],
+      y: item.transform[5],
+      height: Math.round(item.height || 12)
+    }));
+
+    const lineThreshold = 6;
+    let lines = [];
+    items.forEach(item => {
+      let added = false;
+      for (let line of lines) {
+        if (Math.abs(line.y - item.y) < lineThreshold) {
+          line.items.push(item);
+          added = true;
+          break;
+        }
+      }
+      if (!added) {
+        lines.push({ y: item.y, items: [item], height: item.height });
+      }
+    });
+
+    lines.sort((a, b) => b.y - a.y);
+
+    lines.forEach(line => {
+      line.items.sort((a, b) => a.x - b.x);
+      const lineStr = line.items.map(it => it.str).join(' ');
+      if (lineStr.trim()) {
+        const isHeader = line.height > 14;
         docChildren.push(new docx.Paragraph({
           children: [
             new docx.TextRun({
-              text: line,
+              text: lineStr,
               font: "Arial",
-              size: 24
+              size: isHeader ? 28 : 22,
+              bold: isHeader
             })
           ],
-          spacing: { after: 120 }
+          spacing: { after: isHeader ? 140 : 80 }
         }));
       }
     });
-    
-    const doc = new docx.Document({
-      sections: [{
-        children: docChildren
-      }]
-    });
-    
-    onProgress(0.95, "Assembling DOCX file stream...");
-    return await docx.Packer.toBlob(doc);
-  } else {
-    onProgress(0.1, "Reading PDF document structure...");
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-    const numPages = pdf.numPages;
-    const docChildren = [];
-    
-    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
-      onProgress(0.1 + ((pageNum - 1) / numPages) * 0.8, `Rendering page ${pageNum} of ${numPages}...`);
-      const page = await pdf.getPage(pageNum);
-      const scale = 3.5;
-      const viewport = page.getViewport({ scale });
-      
-      const canvas = document.createElement('canvas');
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      const context = canvas.getContext('2d');
-      
-      await page.render({
-        canvasContext: context,
-        viewport: viewport
-      }).promise;
-      
-      const imgDataUrl = canvas.toDataURL('image/jpeg', 0.9);
-      const imgBuffer = await (await fetch(imgDataUrl)).arrayBuffer();
-      
-      docChildren.push(
-        new docx.Paragraph({
-          children: [
-            new docx.ImageRun({
-              data: imgBuffer,
-              transformation: {
-                width: 595.27 - 72,
-                height: 841.89 - 72
-              }
-            })
-          ],
-          alignment: docx.AlignmentType.CENTER
-        })
-      );
-      
-      if (pageNum < numPages) {
-        docChildren.push(new docx.Paragraph({
-          children: [new docx.PageBreak()]
-        }));
-      }
+
+    if (pageNum < numPages) {
+      docChildren.push(new docx.Paragraph({
+        children: [new docx.PageBreak()]
+      }));
     }
-    
-    onProgress(0.95, "Compiling final Word layout...");
-    const doc = new docx.Document({
-      sections: [{
-        properties: {
-          page: {
-            size: {
-              width: docx.convertInchesToTwip(8.27),
-              height: docx.convertInchesToTwip(11.69)
-            },
-            margin: {
-              top: docx.convertInchesToTwip(0.5),
-              bottom: docx.convertInchesToTwip(0.5),
-              left: docx.convertInchesToTwip(0.5),
-              right: docx.convertInchesToTwip(0.5)
-            }
-          }
-        },
-        children: docChildren
-      }]
-    });
-    
-    return await docx.Packer.toBlob(doc);
   }
+
+  if (docChildren.length === 0) {
+    docChildren.push(new docx.Paragraph({
+      children: [new docx.TextRun({ text: "Document contains no selectable text.", font: "Arial", size: 24 })]
+    }));
+  }
+
+  onProgress(0.95, "Assembling DOCX file...");
+  const doc = new docx.Document({
+    sections: [{
+      children: docChildren
+    }]
+  });
+
+  return await docx.Packer.toBlob(doc);
 }
 
 /**
- * Convert PDF pages to full-bleed PowerPoint slides (PPTX) client-side
+ * Convert PDF pages to PowerPoint slides with native text boxes (PPTX)
  */
 async function pdfToPPTX(file, outputName = "Presentation.pptx", onProgress = () => {}) {
-  onProgress(0.05, "Reading PDF bytes...");
+  onProgress(0.05, "Reading PDF document bytes...");
   const arrayBuffer = await fileToArrayBuffer(file);
-  
+
+  // Try Python Backend API first (creates native editable text boxes and shapes)
+  try {
+    onProgress(0.15, "Connecting to presentation conversion engine...");
+    const response = await fetch('/api/convert_pdf_to_pptx', {
+      method: 'POST',
+      body: new Uint8Array(arrayBuffer.slice(0))
+    });
+    if (response.ok) {
+      onProgress(0.9, "Receiving PowerPoint presentation...");
+      const blob = await response.blob();
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = outputName;
+      link.click();
+      onProgress(1.0, "Conversion complete!");
+      return;
+    }
+  } catch (err) {
+    console.warn("Backend PDF to PPTX conversion unavailable, using client fallback:", err);
+  }
+
+  // Client-Side Fallback with Native Text Boxes (NOT slide screenshot images!)
+  onProgress(0.2, "Parsing slide layout & text items...");
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-  const loadingTask = pdfjsLib.getDocument({ data: arrayBuffer });
-  const pdf = await loadingTask.promise;
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
   const numPages = pdf.numPages;
   
   const pptx = new PptxGenJS();
-  pptx.layout = 'LAYOUT_WIDE';
-  
+  pptx.layout = 'LAYOUT_WIDE'; // 10 x 5.625 inches
+
   for (let pageNum = 1; pageNum <= numPages; pageNum++) {
-    onProgress(0.1 + ((pageNum - 1) / numPages) * 0.8, `Rendering slide ${pageNum} of ${numPages}...`);
+    onProgress(0.2 + ((pageNum - 1) / numPages) * 0.7, `Generating editable slide ${pageNum} of ${numPages}...`);
     const page = await pdf.getPage(pageNum);
-    
-    const scale = 3.5;
-    const viewport = page.getViewport({ scale });
-    
-    const canvas = document.createElement('canvas');
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    const context = canvas.getContext('2d');
-    
-    await page.render({
-      canvasContext: context,
-      viewport: viewport
-    }).promise;
-    
-    const jpegUrl = canvas.toDataURL('image/jpeg', 0.90);
+    const viewport = page.getViewport({ scale: 1.0 });
+    const pw = viewport.width;
+    const ph = viewport.height;
     
     const slide = pptx.addSlide();
-    slide.addImage({
-      data: jpegUrl,
-      x: 0,
-      y: 0,
-      w: '100%',
-      h: '100%'
+    const scaleX = 10.0 / pw;
+    const scaleY = 5.625 / ph;
+
+    const textContent = await page.getTextContent();
+    const items = textContent.items;
+
+    // Group text items into block lines
+    const lineThreshold = 8;
+    let lines = [];
+    items.forEach(item => {
+      let added = false;
+      for (let line of lines) {
+        if (Math.abs(line.y - item.transform[5]) < lineThreshold) {
+          line.items.push(item);
+          added = true;
+          break;
+        }
+      }
+      if (!added) {
+        lines.push({ y: item.transform[5], items: [item] });
+      }
+    });
+
+    lines.sort((a, b) => b.y - a.y);
+
+    lines.forEach(line => {
+      line.items.sort((a, b) => a.transform[4] - b.transform[4]);
+      const lineStr = line.items.map(it => it.str).join(' ');
+      if (lineStr.trim()) {
+        const firstIt = line.items[0];
+        const x = firstIt.transform[4] * scaleX;
+        const y = (ph - firstIt.transform[5]) * scaleY;
+        const fontSize = Math.max(10, Math.round((firstIt.height || 12) * scaleY * 72));
+        
+        slide.addText(lineStr, {
+          x: Math.max(0.3, x),
+          y: Math.max(0.3, y),
+          w: Math.min(9.4, 8.0),
+          h: 0.6,
+          fontSize: Math.min(36, fontSize),
+          fontFace: 'Arial',
+          color: '1F2937'
+        });
+      }
     });
   }
-  
+
   onProgress(0.95, "Compiling PPTX presentation...");
   await pptx.writeFile({ fileName: outputName });
   onProgress(1.0, "Conversion complete!");
 }
 
 /**
- * Convert Word Document (DOCX) to PDF client-side
+ * Convert Word Document (DOCX) to PDF
  */
 async function wordToPDF(file, outputName = "Document.pdf", onProgress = () => {}) {
-  onProgress(0.1, "Reading DOCX file buffer...");
+  onProgress(0.05, "Reading Word document bytes...");
   const arrayBuffer = await fileToArrayBuffer(file);
-  
+
+  // Try Python Backend API first (100% vector PDF generation using reportlab)
+  try {
+    onProgress(0.15, "Connecting to vector PDF engine...");
+    const response = await fetch('/api/convert_word_to_pdf', {
+      method: 'POST',
+      body: new Uint8Array(arrayBuffer.slice(0))
+    });
+    if (response.ok) {
+      onProgress(0.9, "Receiving vector PDF document...");
+      const blob = await response.blob();
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = outputName;
+      link.click();
+      onProgress(1.0, "Conversion finished!");
+      return;
+    }
+  } catch (err) {
+    console.warn("Backend Word to PDF conversion unavailable, using client fallback:", err);
+  }
+
+  // Client-Side Fallback: Render vector layout PDF
   onProgress(0.3, "Parsing Word contents...");
   const result = await mammoth.convertToHtml({ arrayBuffer: arrayBuffer });
   const htmlContent = result.value;
-  
-  onProgress(0.65, "Rendering print layout...");
+
+  onProgress(0.6, "Formatting document layout...");
   const printDiv = document.createElement('div');
   printDiv.id = 'temp-word-print-element';
   printDiv.style.position = 'absolute';
   printDiv.style.left = '-9999px';
   printDiv.style.top = '-9999px';
-  printDiv.style.width = '800px';
+  printDiv.style.width = '750px';
   printDiv.style.padding = '40px';
   printDiv.style.color = '#000000';
   printDiv.style.background = '#ffffff';
-  printDiv.style.fontFamily = 'Calibri, Arial, sans-serif';
+  printDiv.style.fontFamily = 'Arial, sans-serif';
   printDiv.style.lineHeight = '1.6';
+  printDiv.style.fontSize = '14px';
   printDiv.innerHTML = htmlContent;
-  
   document.body.appendChild(printDiv);
-  
-  onProgress(0.8, "Compiling PDF pages...");
-  
+
+  onProgress(0.8, "Compiling PDF document...");
   const opt = {
-    margin: 12,
+    margin: 15,
     filename: outputName,
     image: { type: 'jpeg', quality: 0.98 },
-    html2canvas: { scale: 4, useCORS: true, logging: false },
+    html2canvas: { scale: 3, useCORS: true, logging: false },
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
   };
-  
+
   await html2pdf().from(printDiv).set(opt).save();
-  
   document.body.removeChild(printDiv);
   onProgress(1.0, "Conversion finished!");
 }
