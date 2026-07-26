@@ -992,6 +992,26 @@ async function pdfToWord(file, mode = 'layout', onProgress = () => {}) {
 /**
  * Convert PDF pages to PowerPoint slides with native text boxes (PPTX)
  */
+/**
+ * Helper to convert Base64 string to Blob
+ */
+function base64ToBlob(base64, mimeType) {
+  const byteCharacters = atob(base64);
+  const byteArrays = [];
+  for (let offset = 0; offset < byteCharacters.length; offset += 512) {
+    const slice = byteCharacters.slice(offset, offset + 512);
+    const byteNumbers = new Array(slice.length);
+    for (let i = 0; i < slice.length; i++) {
+      byteNumbers[i] = slice.charCodeAt(i);
+    }
+    byteArrays.push(new Uint8Array(byteNumbers));
+  }
+  return new Blob(byteArrays, { type: mimeType });
+}
+
+/**
+ * Convert PDF pages to PowerPoint slides with native text boxes (PPTX)
+ */
 async function pdfToPPTX(file, outputName = "Presentation.pptx", onProgress = () => {}) {
   onProgress(0.05, "Reading PDF document bytes...");
   const arrayBuffer = await fileToArrayBuffer(file);
@@ -1006,12 +1026,8 @@ async function pdfToPPTX(file, outputName = "Presentation.pptx", onProgress = ()
     if (response.ok) {
       onProgress(0.9, "Receiving PowerPoint presentation...");
       const blob = await response.blob();
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = outputName;
-      link.click();
       onProgress(1.0, "Conversion complete!");
-      return;
+      return blob;
     }
   } catch (err) {
     console.warn("Backend PDF to PPTX conversion unavailable, using client fallback:", err);
@@ -1082,8 +1098,10 @@ async function pdfToPPTX(file, outputName = "Presentation.pptx", onProgress = ()
   }
 
   onProgress(0.95, "Compiling PPTX presentation...");
-  await pptx.writeFile({ fileName: outputName });
+  const base64 = await pptx.write({ outputType: 'base64' });
+  const blob = base64ToBlob(base64, 'application/vnd.openxmlformats-officedocument.presentationml.presentation');
   onProgress(1.0, "Conversion complete!");
+  return blob;
 }
 
 /**
@@ -1103,12 +1121,8 @@ async function wordToPDF(file, outputName = "Document.pdf", onProgress = () => {
     if (response.ok) {
       onProgress(0.9, "Receiving vector PDF document...");
       const blob = await response.blob();
-      const link = document.createElement('a');
-      link.href = URL.createObjectURL(blob);
-      link.download = outputName;
-      link.click();
       onProgress(1.0, "Conversion finished!");
-      return;
+      return blob;
     }
   } catch (err) {
     console.warn("Backend Word to PDF conversion unavailable, using client fallback:", err);
@@ -1144,9 +1158,10 @@ async function wordToPDF(file, outputName = "Document.pdf", onProgress = () => {
     jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
   };
 
-  await html2pdf().from(printDiv).set(opt).save();
+  const pdfBlob = await html2pdf().from(printDiv).set(opt).outputPdf('blob');
   document.body.removeChild(printDiv);
   onProgress(1.0, "Conversion finished!");
+  return pdfBlob;
 }
 
 
