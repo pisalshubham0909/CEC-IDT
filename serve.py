@@ -301,35 +301,92 @@ def run_server():
                             with open(docx_path, 'rb') as f_docx:
                                 res_docx = f_docx.read()
                         except Exception as p2d_err:
-                            print(f"pdf2docx note: {p2d_err}, using PyMuPDF + python-docx fallback")
+                            print(f"pdf2docx note: {p2d_err}, using PyMuPDF + python-docx table fallback")
                             import fitz, docx
                             from docx.shared import Pt, RGBColor
+                            from docx.oxml import parse_xml
+                            from docx.oxml.ns import nsdecls
+
+                            def _set_cell_bg(cell, fill_hex):
+                                tcPr = cell._tc.get_or_add_tcPr()
+                                shd = parse_xml(f'<w:shd {nsdecls("w")} w:fill="{fill_hex}"/>')
+                                tcPr.append(shd)
+
+                            def _set_tbl_borders(table):
+                                tblPr = table._tbl.tblPr
+                                borders = parse_xml(
+                                    f'<w:tblBorders {nsdecls("w")}>'
+                                    f'<w:top w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>'
+                                    f'<w:bottom w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>'
+                                    f'<w:left w:val="none"/>'
+                                    f'<w:right w:val="none"/>'
+                                    f'<w:insideH w:val="single" w:sz="4" w:space="0" w:color="E5E7EB"/>'
+                                    f'<w:insideV w:val="none"/>'
+                                    f'</w:tblBorders>'
+                                )
+                                tblPr.append(borders)
+
                             doc_pdf = fitz.open('pdf', body)
                             doc_word = docx.Document()
+                            
                             for page_idx in range(len(doc_pdf)):
-                                page = doc_pdf[page_idx]
-                                blocks = page.get_text('dict')['blocks']
-                                for b in blocks:
-                                    if b.get('type') == 0:
-                                        p_para = doc_word.add_paragraph()
-                                        for line in b.get('lines', []):
-                                            for span in line.get('spans', []):
-                                                txt = span.get('text', '')
-                                                if not txt: continue
-                                                run = p_para.add_run(txt + ' ')
-                                                size = span.get('size', 11)
-                                                run.font.size = Pt(max(6, min(72, size)))
-                                                flags = span.get('flags', 0)
-                                                if flags & 2: run.font.bold = True
-                                                if flags & 1: run.font.italic = True
-                                                color_int = span.get('color', 0)
-                                                if color_int != 0:
-                                                    r = (color_int >> 16) & 0xFF
-                                                    g = (color_int >> 8) & 0xFF
-                                                    b_c = color_int & 0xFF
-                                                    run.font.color.rgb = RGBColor(r, g, b_c)
+                                p = doc_pdf[page_idx]
+                                words = p.get_text('words')
+                                
+                                if words:
+                                    line_dict = {}
+                                    for w in words:
+                                        y_approx = round(w[1] / 6.0) * 6.0
+                                        line_dict.setdefault(y_approx, []).append(w)
+                                    
+                                    sorted_y = sorted(line_dict.keys())
+                                    table_rows_buffer = []
+                                    
+                                    def _flush_tbl(word_doc, rows_buf):
+                                        if not rows_buf: return
+                                        max_cols = max(len(r) for r in rows_buf)
+                                        tbl = word_doc.add_table(rows=len(rows_buf), cols=max_cols)
+                                        _set_tbl_borders(tbl)
+                                        
+                                        for r_i, row_items in enumerate(rows_buf):
+                                            is_header = (r_i == 0)
+                                            for c_i, cell_text in enumerate(row_items):
+                                                if c_i < max_cols:
+                                                    cell = tbl.cell(r_i, c_i)
+                                                    cell.text = cell_text
+                                                    if is_header:
+                                                        _set_cell_bg(cell, '0284C7')
+                                                        p_c = cell.paragraphs[0]
+                                                        for run in p_c.runs:
+                                                            run.font.bold = True
+                                                            run.font.color.rgb = RGBColor(255, 255, 255)
+                                        word_doc.add_paragraph()
+                                        rows_buf.clear()
+
+                                    for y in sorted_y:
+                                        line_words = sorted(line_dict[y], key=lambda item: item[0])
+                                        cols = []
+                                        curr_col = [line_words[0][4]]
+                                        for i in range(1, len(line_words)):
+                                            gap = line_words[i][0] - line_words[i-1][2]
+                                            if gap > 18:
+                                                cols.append(' '.join(curr_col))
+                                                curr_col = [line_words[i][4]]
+                                            else:
+                                                curr_col.append(line_words[i][4])
+                                        cols.append(' '.join(curr_col))
+                                        
+                                        if len(cols) > 1:
+                                            table_rows_buffer.append(cols)
+                                        else:
+                                            _flush_tbl(doc_word, table_rows_buffer)
+                                            doc_word.add_paragraph(' '.join(cols))
+                                            
+                                    _flush_tbl(doc_word, table_rows_buffer)
+
                                 if page_idx < len(doc_pdf) - 1:
                                     doc_word.add_page_break()
+
                             out_b = io.BytesIO()
                             doc_word.save(out_b)
                             res_docx = out_b.getvalue()
