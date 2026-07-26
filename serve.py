@@ -300,6 +300,39 @@ def run_server():
                             cv.close()
                             with open(docx_path, 'rb') as f_docx:
                                 res_docx = f_docx.read()
+                        except Exception as p2d_err:
+                            print(f"pdf2docx note: {p2d_err}, using PyMuPDF + python-docx fallback")
+                            import fitz, docx
+                            from docx.shared import Pt, RGBColor
+                            doc_pdf = fitz.open('pdf', body)
+                            doc_word = docx.Document()
+                            for page_idx in range(len(doc_pdf)):
+                                page = doc_pdf[page_idx]
+                                blocks = page.get_text('dict')['blocks']
+                                for b in blocks:
+                                    if b.get('type') == 0:
+                                        p_para = doc_word.add_paragraph()
+                                        for line in b.get('lines', []):
+                                            for span in line.get('spans', []):
+                                                txt = span.get('text', '')
+                                                if not txt: continue
+                                                run = p_para.add_run(txt + ' ')
+                                                size = span.get('size', 11)
+                                                run.font.size = Pt(max(6, min(72, size)))
+                                                flags = span.get('flags', 0)
+                                                if flags & 2: run.font.bold = True
+                                                if flags & 1: run.font.italic = True
+                                                color_int = span.get('color', 0)
+                                                if color_int != 0:
+                                                    r = (color_int >> 16) & 0xFF
+                                                    g = (color_int >> 8) & 0xFF
+                                                    b_c = color_int & 0xFF
+                                                    run.font.color.rgb = RGBColor(r, g, b_c)
+                                if page_idx < len(doc_pdf) - 1:
+                                    doc_word.add_page_break()
+                            out_b = io.BytesIO()
+                            doc_word.save(out_b)
+                            res_docx = out_b.getvalue()
                         finally:
                             if os.path.exists(pdf_path): os.remove(pdf_path)
                             if os.path.exists(docx_path): os.remove(docx_path)
@@ -313,7 +346,8 @@ def run_server():
                     try:
                         import fitz
                         from pptx import Presentation
-                        from pptx.util import Inches
+                        from pptx.util import Inches, Pt
+                        from pptx.dml.color import RGBColor
                         
                         doc_pdf = fitz.open('pdf', body)
                         prs = Presentation()
@@ -327,36 +361,57 @@ def run_server():
                         prs.slide_height = Inches(10 * (h_p / w_p) if w_p > 0 else 7.5)
 
                         for page_idx in range(len(doc_pdf)):
-                            p = doc_pdf[page_idx]
-                            rect = p.rect
+                            page = doc_pdf[page_idx]
+                            rect = page.rect
                             pw, ph = rect.width, rect.height
                             
                             slide = prs.slides.add_slide(prs.slide_layouts[6])
                             scale_x = prs.slide_width.inches / pw if pw > 0 else 1.0
                             scale_y = prs.slide_height.inches / ph if ph > 0 else 1.0
                             
-                            blocks = p.get_text('blocks')
+                            blocks = page.get_text('dict')['blocks']
                             for b in blocks:
-                                if b[6] == 0:
-                                    x0, y0, x1, y1, text = b[0], b[1], b[2], b[3], b[4]
-                                    left = Inches(x0 * scale_x)
-                                    top = Inches(y0 * scale_y)
-                                    width = Inches(max(0.5, (x1 - x0) * scale_x))
-                                    height = Inches(max(0.3, (y1 - y0) * scale_y))
+                                if b.get('type') == 0:
+                                    bbox = b.get('bbox', (0,0,100,50))
+                                    left = Inches(bbox[0] * scale_x)
+                                    top = Inches(bbox[1] * scale_y)
+                                    width = Inches(max(0.5, (bbox[2] - bbox[0]) * scale_x))
+                                    height = Inches(max(0.3, (bbox[3] - bbox[1]) * scale_y))
                                     
                                     txBox = slide.shapes.add_textbox(left, top, width, height)
                                     tf = txBox.text_frame
                                     tf.word_wrap = True
-                                    tf.text = text.strip()
+                                    tf.margin_left = tf.margin_top = tf.margin_right = tf.margin_bottom = 0
                                     
-                            for img_info in p.get_images(full=True):
+                                    para_idx = 0
+                                    for line in b.get('lines', []):
+                                        p_para = tf.paragraphs[0] if para_idx == 0 else tf.add_paragraph()
+                                        para_idx += 1
+                                        for span in line.get('spans', []):
+                                            txt = span.get('text', '')
+                                            if not txt: continue
+                                            run = p_para.add_run()
+                                            run.text = txt
+                                            size = span.get('size', 12)
+                                            run.font.size = Pt(max(8, min(60, size * scale_y * 1.1)))
+                                            flags = span.get('flags', 0)
+                                            if flags & 2: run.font.bold = True
+                                            if flags & 1: run.font.italic = True
+                                            color_int = span.get('color', 0)
+                                            if color_int != 0:
+                                                r = (color_int >> 16) & 0xFF
+                                                g = (color_int >> 8) & 0xFF
+                                                b_c = color_int & 0xFF
+                                                run.font.color.rgb = RGBColor(r, g, b_c)
+                                                
+                            for img_info in page.get_images(full=True):
                                 xref = img_info[0]
                                 try:
                                     base_img = doc_pdf.extract_image(xref)
                                     if base_img:
                                         img_bytes = base_img['image']
                                         img_stream = io.BytesIO(img_bytes)
-                                        rects = p.get_image_rects(xref)
+                                        rects = page.get_image_rects(xref)
                                         for r in rects:
                                             left = Inches(r.x0 * scale_x)
                                             top = Inches(r.y0 * scale_y)
@@ -389,32 +444,56 @@ def run_server():
                         story = []
 
                         for p_item in doc_in.paragraphs:
-                            txt = p_item.text.strip()
-                            if not txt:
-                                story.append(Spacer(1, 8))
+                            runs_html = []
+                            for r in p_item.runs:
+                                t = r.text
+                                if not t: continue
+                                t_html = t.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
+                                if r.bold: t_html = f'<b>{t_html}</b>'
+                                if r.italic: t_html = f'<i>{t_html}</i>'
+                                if r.font.color and r.font.color.rgb:
+                                    hex_col = '#' + str(r.font.color.rgb)
+                                    t_html = f'<font color="{hex_col}">{t_html}</font>'
+                                runs_html.append(t_html)
+                            
+                            para_text = ''.join(runs_html) if runs_html else p_item.text
+                            if not para_text.strip():
+                                story.append(Spacer(1, 6))
                                 continue
+                            
+                            align_code = 0
+                            if p_item.alignment == docx.enum.text.WD_ALIGN_PARAGRAPH.CENTER: align_code = 1
+                            elif p_item.alignment == docx.enum.text.WD_ALIGN_PARAGRAPH.RIGHT: align_code = 2
+                            elif p_item.alignment == docx.enum.text.WD_ALIGN_PARAGRAPH.JUSTIFY: align_code = 4
+
                             p_style = ParagraphStyle(
-                                'DocxPara',
+                                'DocxParaStyle',
                                 parent=normal_style,
                                 fontSize=11,
                                 leading=15,
+                                alignment=align_code,
                                 spaceAfter=6
                             )
-                            story.append(Paragraph(txt, p_style))
+                            story.append(Paragraph(para_text, p_style))
 
                         for tbl_item in doc_in.tables:
                             table_data = []
                             for row in tbl_item.rows:
-                                row_data = [cell.text.strip() for cell in row.cells]
-                                table_data.append(row_data)
+                                row_cells = []
+                                for cell in row.cells:
+                                    cell_text = cell.text.strip()
+                                    cell_p = Paragraph(cell_text, ParagraphStyle('CellP', parent=normal_style, fontSize=10, leading=13))
+                                    row_cells.append(cell_p)
+                                table_data.append(row_cells)
                             if table_data:
                                 t = Table(table_data)
                                 t.setStyle(TableStyle([
                                     ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0284c7')),
                                     ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
                                     ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
-                                    ('FONTSIZE', (0,0), (-1,-1), 10),
-                                    ('BOTTOMPADDING', (0,0), (-1,-1), 5),
+                                    ('VALIGN', (0,0), (-1,-1), 'TOP'),
+                                    ('TOPPADDING', (0,0), (-1,-1), 6),
+                                    ('BOTTOMPADDING', (0,0), (-1,-1), 6),
                                 ]))
                                 story.append(t)
                                 story.append(Spacer(1, 10))

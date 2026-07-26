@@ -2232,9 +2232,9 @@ function initConvertersTab() {
     btnClear.disabled = true;
     progressContainer.style.display = 'block';
     successCard.style.display = 'none';
-
     try {
       const outName = outputNameInput.value || 'Converted_File';
+      let targetExt = '.docx';
       
       if (currentConvType === 'pdf-to-word') {
         const wordModeSelect = document.getElementById('conv-word-mode');
@@ -2244,33 +2244,31 @@ function initConvertersTab() {
           progressPercent.textContent = `${Math.round(progress * 100)}%`;
           progressMsg.textContent = message;
         });
-        
+        targetExt = '.docx';
+      } else if (currentConvType === 'pdf-to-pptx') {
+        resultBlob = await pdfToPPTX(convFile, outName, (progress, message) => {
+          progressBar.style.width = `${progress * 100}%`;
+          progressPercent.textContent = `${Math.round(progress * 100)}%`;
+          progressMsg.textContent = message;
+        });
+        targetExt = '.pptx';
+      } else if (currentConvType === 'word-to-pdf') {
+        resultBlob = await wordToPDF(convFile, outName, (progress, message) => {
+          progressBar.style.width = `${progress * 100}%`;
+          progressPercent.textContent = `${Math.round(progress * 100)}%`;
+          progressMsg.textContent = message;
+        });
+        targetExt = '.pdf';
+      }
+      
+      if (resultBlob) {
         if (resultBlobUrl) URL.revokeObjectURL(resultBlobUrl);
         resultBlobUrl = URL.createObjectURL(resultBlob);
         
         progressContainer.style.display = 'none';
         successCard.style.display = 'flex';
-      } else if (currentConvType === 'pdf-to-pptx') {
-        await pdfToPPTX(convFile, outName, (progress, message) => {
-          progressBar.style.width = `${progress * 100}%`;
-          progressPercent.textContent = `${Math.round(progress * 100)}%`;
-          progressMsg.textContent = message;
-        });
-        
-        // PptxGenJS triggers its own browser save dialog, so we hide progress directly
+      } else {
         progressContainer.style.display = 'none';
-        resetConvFile();
-        alert("PowerPoint file conversion complete! Save dialog has launched.");
-      } else if (currentConvType === 'word-to-pdf') {
-        await wordToPDF(convFile, outName, (progress, message) => {
-          progressBar.style.width = `${progress * 100}%`;
-          progressPercent.textContent = `${Math.round(progress * 100)}%`;
-          progressMsg.textContent = message;
-        });
-        
-        progressContainer.style.display = 'none';
-        resetConvFile();
-        alert("PDF file generated successfully!");
       }
       
       btnClear.disabled = false;
@@ -2283,12 +2281,15 @@ function initConvertersTab() {
   });
 
   btnDownload.addEventListener('click', () => {
-    if (resultBlobUrl && currentConvType === 'pdf-to-word') {
+    if (resultBlobUrl) {
+      let defaultName = 'Converted_Document.docx';
+      if (currentConvType === 'pdf-to-pptx') defaultName = 'Presentation.pptx';
+      if (currentConvType === 'word-to-pdf') defaultName = 'Document.pdf';
+      
       const link = document.createElement('a');
       link.href = resultBlobUrl;
-      link.download = outputNameInput.value || 'Converted_Document.docx';
+      link.download = outputNameInput.value || defaultName;
       link.click();
     }
   });
 }
-
