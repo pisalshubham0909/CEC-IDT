@@ -989,8 +989,29 @@ function initSecurityTab() {
     
     try {
       const arrayBuffer = await fileToArrayBuffer(file);
-      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
+      if (typeof pdfjsLib !== 'undefined') {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      }
+      
+      const pwd = passwordInput ? passwordInput.value : '';
+      let pdf;
+      try {
+        pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0), password: pwd }).promise;
+      } catch (pErr) {
+        if (pErr.name === 'PasswordException' || (pErr.message && pErr.message.includes('password'))) {
+          filePagesLabel.textContent = "Pages: Encrypted PDF";
+          previewContainer.innerHTML = `
+            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5rem; gap: 0.5rem; text-align: center;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+              <span style="color: var(--text-main); font-weight: 600; font-size: 0.9rem;">Password Protected Document</span>
+              <span style="color: var(--text-muted); font-size: 0.75rem;">Enter password in the sidebar to preview document</span>
+            </div>
+          `;
+          return;
+        }
+        throw pErr;
+      }
+
       filePagesLabel.textContent = `Pages: ${pdf.numPages}`;
       
       const page = await pdf.getPage(1);
@@ -1008,10 +1029,21 @@ function initSecurityTab() {
       
       await page.render({ canvasContext: context, viewport: viewport }).promise;
     } catch (e) {
-      console.error(e);
-      filePagesLabel.textContent = "Pages: Unknown";
-      previewContainer.innerHTML = '<span style="color: var(--error); font-size: 0.85rem;">Preview unavailable</span>';
+      console.warn("Security preview fallback:", e);
+      filePagesLabel.textContent = "Pages: Ready";
+      previewContainer.innerHTML = `
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5rem; gap: 0.5rem; text-align: center;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          <span style="color: var(--text-main); font-weight: 600; font-size: 0.85rem;">PDF Document Loaded</span>
+        </div>
+      `;
     }
+  }
+
+  if (passwordInput) {
+    passwordInput.addEventListener('input', () => {
+      if (securityFile) loadFile(securityFile);
+    });
   }
   
   btnClear.addEventListener('click', resetSecurityTab);

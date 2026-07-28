@@ -215,14 +215,14 @@ def run_server():
                         if HAS_FITZ:
                             doc = fitz.open(stream=body, filetype="pdf")
                             if level == 'high':
-                                max_dim = 1200
-                                quality = 45
+                                max_dim = 1000
+                                quality = 35
                             elif level == 'low' or level == 'keep':
-                                max_dim = 2400
-                                quality = 80
-                            else: # medium
                                 max_dim = 1600
                                 quality = 65
+                            else: # medium
+                                max_dim = 1200
+                                quality = 45
 
                             from PIL import Image
                             for page in doc:
@@ -234,22 +234,22 @@ def run_server():
                                             image_bytes = base_image.get("image")
                                             if image_bytes:
                                                 pil_img = Image.open(io.BytesIO(image_bytes))
+                                                if pil_img.mode in ('RGBA', 'P', 'LA'):
+                                                    pil_img = pil_img.convert('RGB')
                                                 w, h = pil_img.size
-                                                scale = 1.0
                                                 if max(w, h) > max_dim:
                                                     scale = max_dim / float(max(w, h))
                                                     new_w, new_h = max(1, int(w * scale)), max(1, int(h * scale))
                                                     pil_img = pil_img.resize((new_w, new_h), Image.Resampling.LANCZOS)
-                                                if pil_img.mode not in ('RGB', 'L'):
-                                                    pil_img = pil_img.convert('RGB')
                                                 out_b = io.BytesIO()
                                                 pil_img.save(out_b, format='JPEG', quality=quality, optimize=True)
                                                 new_bytes = out_b.getvalue()
-                                                if len(new_bytes) < len(image_bytes) or scale < 1.0:
+                                                try:
+                                                    page.replace_image(xref, stream=new_bytes)
+                                                except Exception:
                                                     doc.update_stream(xref, new_bytes)
                                     except Exception:
                                         pass
-
                             comp_bytes = doc.tobytes(garbage=4, deflate=True, clean=True, deflate_images=True, deflate_fonts=True)
                             if len(comp_bytes) < len(body):
                                 res_bytes = comp_bytes
