@@ -963,10 +963,12 @@ function initSecurityTab() {
   
   modeSelect.addEventListener('change', () => {
     if (modeSelect.value === 'encrypt') {
-      passwordLabel.textContent = "Set Open Password";
+      passwordLabel.textContent = "Opening Password (User Password)";
+      passwordInput.placeholder = "Enter password required to open document...";
       outputNameInput.value = securityFile ? securityFile.name.replace('.pdf', '_Protected.pdf') : 'Protected_Document.pdf';
     } else {
-      passwordLabel.textContent = "Decrypt Key (Removes security checks)";
+      passwordLabel.textContent = "Current Opening Password (to Decrypt)";
+      passwordInput.placeholder = "Enter current document password...";
       outputNameInput.value = securityFile ? securityFile.name.replace('.pdf', '_Unlocked.pdf') : 'Unlocked_Document.pdf';
     }
   });

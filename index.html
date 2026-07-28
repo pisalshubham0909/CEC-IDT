@@ -717,15 +717,15 @@
               <input type="text" id="security-output-name" class="settings-input" value="Protected_Document.pdf">
             </div>
             <div class="settings-group">
-              <label class="settings-label" for="security-mode">Operation Mode</label>
+              <label class="settings-label" for="security-mode">Security Mode</label>
               <select id="security-mode" class="settings-select">
-                <option value="encrypt" selected>Encrypt (Add Password)</option>
-                <option value="decrypt">Decrypt (Remove Password)</option>
+                <option value="encrypt" selected>Encrypt (Require Password to Open Document)</option>
+                <option value="decrypt">Decrypt (Remove Password to Open Document)</option>
               </select>
             </div>
             <div class="settings-group">
-              <label class="settings-label" for="security-password" id="security-password-label">Set Open Password</label>
-              <input type="password" id="security-password" class="settings-input" placeholder="Enter password...">
+              <label class="settings-label" for="security-password" id="security-password-label">Opening Password (User Password)</label>
+              <input type="password" id="security-password" class="settings-input" placeholder="Enter password required to open document...">
             </div>
             <button class="action-btn" id="btn-run-security" style="background: linear-gradient(135deg, var(--error) 0%, #dc2626 100%);" disabled>Apply Security</button>
             

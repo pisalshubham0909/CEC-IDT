@@ -655,33 +655,22 @@ async function encryptPDFFile(pdfBytes, password) {
     });
     const contentType = response.headers.get('content-type') || '';
     if (response.ok && contentType.includes('pdf')) {
-      return new Uint8Array(await response.arrayBuffer());
+      const resBytes = new Uint8Array(await response.arrayBuffer());
+      if (resBytes.byteLength > 0) {
+        return resBytes;
+      }
     }
   } catch (err) {
     console.warn("Backend encryption API fetch error:", err);
   }
 
-  // Fallback to client-side PDFLib encryption (handles 405 Not Allowed static servers)
-  try {
-    if (typeof PDFLib !== 'undefined') {
-      const doc = await PDFLib.PDFDocument.load(pdfBytes.slice(0), { ignoreEncryption: true });
-      if (typeof doc.encrypt === 'function') {
-        await doc.encrypt({
-          userPassword: password,
-          ownerPassword: password + "_master_owner"
-        });
-      }
-      return await doc.save();
-    }
-  } catch (cErr) {
-    console.warn("Client PDFLib encryption fallback warning:", cErr);
-  }
-
+  // Client-side fallback using pdf-encrypt module
   try {
     const encryptModule = await import('https://cdn.jsdelivr.net/npm/@pdfsmaller/pdf-encrypt/+esm');
-    return await encryptModule.encryptPDF(new Uint8Array(pdfBytes), password);
+    return await encryptModule.encryptPDF(new Uint8Array(pdfBytes.slice(0)), password);
   } catch (fErr) {
-    throw new Error(`Encryption failed. Please verify password and file format.`);
+    console.warn("Client pdf-encrypt module error:", fErr);
+    throw new Error(`Encryption failed. Server connection unavailable and password could not be applied.`);
   }
 }
 
