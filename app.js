@@ -1015,15 +1015,23 @@ function initSecurityTab() {
       filePagesLabel.textContent = `Pages: ${pdf.numPages}`;
       
       const page = await pdf.getPage(1);
-      const viewport = page.getViewport({ scale: 0.35 });
+      const viewport = page.getViewport({ scale: 0.45 });
       const canvas = document.createElement('canvas');
       canvas.width = viewport.width;
       canvas.height = viewport.height;
-      const context = canvas.getContext('2d');
+      canvas.style.backgroundColor = '#ffffff';
+      canvas.style.borderRadius = '6px';
+      canvas.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.4)';
+      const context = canvas.getContext('2d', { alpha: false });
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
       
       previewContainer.innerHTML = '';
       const wrap = document.createElement('div');
-      wrap.className = 'canvas-page-wrapper';
+      wrap.style.display = 'flex';
+      wrap.style.justifyContent = 'center';
+      wrap.style.alignItems = 'center';
+      wrap.style.padding = '1rem';
       wrap.appendChild(canvas);
       previewContainer.appendChild(wrap);
       
