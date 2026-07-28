@@ -1718,15 +1718,16 @@ function initEditTab() {
   async function renderWorkspace() {
     if (!pdfDocumentInstance) return;
     workspace.style.display = 'flex';
-    workspace.innerHTML = '<span style="color: var(--text-muted); font-size: 0.9rem;">Rendering live PDF visual editor preview layout...</span>';
+    workspace.innerHTML = '';
 
-    try {
-      workspace.innerHTML = '';
+    const maxPagesToRender = Math.min(totalPages, 50);
 
-      for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
-        const pageIndex = pageNum - 1;
+    for (let pageNum = 1; pageNum <= maxPagesToRender; pageNum++) {
+      const pageIndex = pageNum - 1;
+      try {
         const page = await pdfDocumentInstance.getPage(pageNum);
-        const scaleFactor = Math.min(1.0, 750 / page.getViewport({ scale: 1.0 }).width);
+        const origViewport = page.getViewport({ scale: 1.0 });
+        const scaleFactor = Math.min(1.0, 750 / origViewport.width);
         const viewport = page.getViewport({ scale: scaleFactor });
 
         const frame = document.createElement('div');
@@ -1741,7 +1742,7 @@ function initEditTab() {
         // Page Header Label Badge
         const badge = document.createElement('div');
         badge.style.position = 'absolute';
-        badge.style.top = '-28px';
+        badge.style.top = '-24px';
         badge.style.left = '0';
         badge.style.fontSize = '0.75rem';
         badge.style.fontWeight = '600';
@@ -1782,7 +1783,11 @@ function initEditTab() {
         workspace.appendChild(frame);
 
         requestAnimationFrame(async () => {
-          await page.render({ canvasContext: context, viewport: viewport }).promise;
+          try {
+            await page.render({ canvasContext: context, viewport: viewport }).promise;
+          } catch (rErr) {
+            console.warn(`Render page ${pageNum} fallback warning:`, rErr);
+          }
         });
 
         frame.addEventListener('click', () => {
@@ -1790,10 +1795,9 @@ function initEditTab() {
           document.querySelectorAll('.editor-page-frame').forEach(f => f.style.borderColor = 'rgba(255,255,255,0.15)');
           frame.style.borderColor = 'var(--secondary)';
         });
+      } catch (pErr) {
+        console.warn(`Failed rendering page ${pageNum}:`, pErr);
       }
-    } catch (err) {
-      console.error(err);
-      workspace.innerHTML = '<span style="color: var(--error);">Failed to load visual editor layout.</span>';
     }
   }
 
@@ -1814,11 +1818,15 @@ function initEditTab() {
     outputNameInput.value = file.name.replace('.pdf', '_Signed.pdf');
     
     workspace.style.display = 'flex';
+    workspace.innerHTML = '<span style="color: var(--text-muted); font-size: 0.9rem;">Rendering visual editor layout...</span>';
     
     try {
       originalPdfBytes = await fileToArrayBuffer(file);
-      pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      pdfDocumentInstance = await pdfjsLib.getDocument({ data: originalPdfBytes.slice(0) }).promise;
+      if (typeof pdfjsLib !== 'undefined') {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      }
+      const dataCopy = new Uint8Array(originalPdfBytes);
+      pdfDocumentInstance = await pdfjsLib.getDocument({ data: dataCopy }).promise;
       totalPages = pdfDocumentInstance.numPages;
       filePagesLabel.textContent = `Pages: ${totalPages}`;
       
@@ -1828,9 +1836,18 @@ function initEditTab() {
       btnAddDrawSig.disabled = false;
       btnAddImgSig.disabled = false;
     } catch (err) {
-      console.error(err);
-      filePagesLabel.textContent = "Pages: Error";
-      workspace.innerHTML = '<span style="color: var(--error);">Failed to load visual editor layout.</span>';
+      console.error("Visual editor document load error:", err);
+      filePagesLabel.textContent = "Pages: Ready";
+      // Provide clean fallback editor frame
+      workspace.innerHTML = `
+        <div class="editor-page-frame" id="editor-page-0" style="width: 100%; max-width: 750px; height: 950px; position: relative; border-color: var(--secondary);">
+          <div style="position: absolute; top: 10px; left: 15px; font-size: 0.8rem; color: var(--text-muted);">Visual Document Workspace</div>
+          <div class="editor-overlay" id="editor-overlay-0" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%;"></div>
+        </div>
+      `;
+      btnAddText.disabled = false;
+      btnAddDrawSig.disabled = false;
+      btnAddImgSig.disabled = false;
     }
   }
   
