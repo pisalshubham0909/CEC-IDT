@@ -2315,7 +2315,10 @@ function initConvertersTab() {
   dropzone.addEventListener('click', () => fileInput.click());
   const btnBrowseConv = document.getElementById('btn-browse-conv');
   if (btnBrowseConv) {
-    btnBrowseConv.addEventListener('click', () => fileInput.click());
+    btnBrowseConv.addEventListener('click', (e) => {
+      e.stopPropagation();
+      fileInput.click();
+    });
   }
 
   fileInput.addEventListener('change', async (e) => {
@@ -2424,29 +2427,25 @@ function initConvertersTab() {
     successCard.style.display = 'none';
     try {
       const outName = outputNameInput.value || 'Converted_File';
-      let targetExt = '.docx';
       
       if (currentConvType === 'pdf-to-word') {
-        resultBlob = await pdfToWord(convFile, 'layout', (progress, message) => {
+        resultBlob = await pdfToWord(convFile, 'layout', {}, (progress, message) => {
           progressBar.style.width = `${progress * 100}%`;
           progressPercent.textContent = `${Math.round(progress * 100)}%`;
           progressMsg.textContent = message;
         });
-        targetExt = '.docx';
       } else if (currentConvType === 'pdf-to-pptx') {
-        resultBlob = await pdfToPPTX(convFile, outName, (progress, message) => {
+        resultBlob = await pdfToPPTX(convFile, outName, {}, (progress, message) => {
           progressBar.style.width = `${progress * 100}%`;
           progressPercent.textContent = `${Math.round(progress * 100)}%`;
           progressMsg.textContent = message;
         });
-        targetExt = '.pptx';
       } else if (currentConvType === 'word-to-pdf') {
-        resultBlob = await wordToPDF(convFile, outName, (progress, message) => {
+        resultBlob = await wordToPDF(convFile, outName, {}, (progress, message) => {
           progressBar.style.width = `${progress * 100}%`;
           progressPercent.textContent = `${Math.round(progress * 100)}%`;
           progressMsg.textContent = message;
         });
-        targetExt = '.pdf';
       }
       
       if (resultBlob) {
@@ -2459,6 +2458,7 @@ function initConvertersTab() {
         progressContainer.style.display = 'none';
       }
       
+      btnRun.disabled = false;
       btnClear.disabled = false;
     } catch (err) {
       alert(`Conversion failed: ${err.message}`);
