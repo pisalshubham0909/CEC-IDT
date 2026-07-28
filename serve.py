@@ -132,7 +132,7 @@ def run_server():
                         out_buffer = io.BytesIO()
                         try:
                             import fitz
-                            doc = fitz.open('pdf', body)
+                            doc = fitz.open(stream=body, filetype="pdf")
                             doc.save(out_buffer, encryption=fitz.PDF_ENCRYPT_AES_256, user_pw=password, owner_pw=password)
                             doc.close()
                             res_bytes = out_buffer.getvalue()
@@ -156,9 +156,11 @@ def run_server():
                         out_buffer = io.BytesIO()
                         try:
                             import fitz
-                            doc = fitz.open('pdf', body)
+                            doc = fitz.open(stream=body, filetype="pdf")
                             if doc.is_encrypted:
-                                doc.authenticate(password)
+                                auth = doc.authenticate(password)
+                                if not auth and password:
+                                    doc.authenticate(password.encode('utf-8'))
                             doc.save(out_buffer, encryption=fitz.PDF_ENCRYPT_NONE)
                             doc.close()
                             res_bytes = out_buffer.getvalue()

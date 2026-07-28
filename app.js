@@ -1015,13 +1015,19 @@ function initSecurityTab() {
       filePagesLabel.textContent = `Pages: ${pdf.numPages}`;
       
       const page = await pdf.getPage(1);
-      const viewport = page.getViewport({ scale: 0.45 });
+      const origViewport = page.getViewport({ scale: 1.0 });
+      const targetWidth = Math.min(280, Math.max(200, (previewContainer.clientWidth || 300) - 30));
+      const scaleFactor = targetWidth / origViewport.width;
+      const viewport = page.getViewport({ scale: scaleFactor });
+
       const canvas = document.createElement('canvas');
       canvas.width = viewport.width;
       canvas.height = viewport.height;
       canvas.style.backgroundColor = '#ffffff';
       canvas.style.borderRadius = '6px';
       canvas.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.4)';
+      canvas.style.display = 'block';
+
       const context = canvas.getContext('2d', { alpha: false });
       context.fillStyle = '#ffffff';
       context.fillRect(0, 0, canvas.width, canvas.height);
@@ -1031,11 +1037,18 @@ function initSecurityTab() {
       wrap.style.display = 'flex';
       wrap.style.justifyContent = 'center';
       wrap.style.alignItems = 'center';
-      wrap.style.padding = '1rem';
+      wrap.style.padding = '0.75rem';
+      wrap.style.width = '100%';
       wrap.appendChild(canvas);
       previewContainer.appendChild(wrap);
       
-      await page.render({ canvasContext: context, viewport: viewport }).promise;
+      requestAnimationFrame(async () => {
+        try {
+          await page.render({ canvasContext: context, viewport: viewport }).promise;
+        } catch (rErr) {
+          console.warn("Security canvas render warning:", rErr);
+        }
+      });
     } catch (e) {
       console.warn("Security preview fallback:", e);
       filePagesLabel.textContent = "Pages: Ready";
@@ -1048,9 +1061,13 @@ function initSecurityTab() {
     }
   }
 
+  let pwdDebounceTimer = null;
   if (passwordInput) {
     passwordInput.addEventListener('input', () => {
-      if (securityFile) loadFile(securityFile);
+      clearTimeout(pwdDebounceTimer);
+      pwdDebounceTimer = setTimeout(() => {
+        if (securityFile) loadFile(securityFile);
+      }, 350);
     });
   }
   
