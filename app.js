@@ -1700,7 +1700,6 @@ function initEditTab() {
   });
   
   let pdfDocumentInstance = null;
-  let currentViewMode = 'single'; // 'single' (fast for 1000+ pages), 'all'
   let savedPageNodes = {}; // Cache added annotations per page: { pageIndex: [HTMLNodeClones] }
 
   const navBar = document.getElementById('edit-page-nav-bar');
@@ -1709,14 +1708,6 @@ function initEditTab() {
   const pageIndicator = document.getElementById('edit-page-indicator');
   const jumpInput = document.getElementById('edit-jump-page-input');
   const btnJump = document.getElementById('btn-edit-jump-page');
-  const viewModeSelect = document.getElementById('edit-view-mode');
-
-  if (viewModeSelect) {
-    viewModeSelect.addEventListener('change', () => {
-      currentViewMode = viewModeSelect.value;
-      if (pdfDocumentInstance) renderWorkspace();
-    });
-  }
 
   if (btnPrevPage) {
     btnPrevPage.addEventListener('click', () => {
@@ -1767,111 +1758,52 @@ function initEditTab() {
       jumpInput.max = totalPages;
     }
 
-    if (currentViewMode === 'single' || totalPages > 10) {
-      // High-performance single page view (Instant load even for 1000+ pages)
-      const pageIndex = activePageIndex;
-      const pageNum = pageIndex + 1;
-      const page = await pdfDocumentInstance.getPage(pageNum);
-      const scaleFactor = Math.min(1.0, 750 / page.getViewport({ scale: 1.0 }).width);
-      const viewport = page.getViewport({ scale: scaleFactor });
+    const pageIndex = activePageIndex;
+    const pageNum = pageIndex + 1;
+    const page = await pdfDocumentInstance.getPage(pageNum);
+    const scaleFactor = Math.min(1.0, 750 / page.getViewport({ scale: 1.0 }).width);
+    const viewport = page.getViewport({ scale: scaleFactor });
 
-      const frame = document.createElement('div');
-      frame.className = 'editor-page-frame';
-      frame.id = `editor-page-${pageIndex}`;
-      frame.style.width = `${viewport.width}px`;
-      frame.style.height = `${viewport.height}px`;
-      frame.style.borderColor = 'var(--secondary)';
+    const frame = document.createElement('div');
+    frame.className = 'editor-page-frame';
+    frame.id = `editor-page-${pageIndex}`;
+    frame.style.width = `${viewport.width}px`;
+    frame.style.height = `${viewport.height}px`;
+    frame.style.borderColor = 'var(--secondary)';
 
-      const canvas = document.createElement('canvas');
-      canvas.className = 'editor-canvas';
-      canvas.width = viewport.width;
-      canvas.height = viewport.height;
-      const context = canvas.getContext('2d', { alpha: false });
+    const canvas = document.createElement('canvas');
+    canvas.className = 'editor-canvas';
+    canvas.width = viewport.width;
+    canvas.height = viewport.height;
+    const context = canvas.getContext('2d', { alpha: false });
 
-      const overlay = document.createElement('div');
-      overlay.className = 'editor-overlay';
-      overlay.id = `editor-overlay-${pageIndex}`;
+    const overlay = document.createElement('div');
+    overlay.className = 'editor-overlay';
+    overlay.id = `editor-overlay-${pageIndex}`;
 
-      // Restore previously saved annotations for this page
-      if (savedPageNodes[pageIndex]) {
-        savedPageNodes[pageIndex].forEach(clonedChild => {
-          const rehydrated = clonedChild.cloneNode(true);
-          overlay.appendChild(rehydrated);
-          const delBtn = rehydrated.querySelector('.editor-node-delete-btn');
-          const resizeHandle = rehydrated.querySelector('.editor-node-resize-handle');
-          makeElementDraggable(rehydrated, overlay);
-          if (resizeHandle) makeElementResizable(rehydrated, resizeHandle);
-          if (delBtn) {
-            delBtn.addEventListener('click', (e) => {
-              e.stopPropagation();
-              rehydrated.remove();
-            });
-          }
-        });
-      }
-
-      frame.appendChild(canvas);
-      frame.appendChild(overlay);
-      workspace.appendChild(frame);
-
-      await page.render({ canvasContext: context, viewport: viewport }).promise;
-    } else {
-      // Multipage continuous view for small documents
-      for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
-        const pageIndex = pageNum - 1;
-        const page = await pdfDocumentInstance.getPage(pageNum);
-        const scaleFactor = Math.min(1.0, 750 / page.getViewport({ scale: 1.0 }).width);
-        const viewport = page.getViewport({ scale: scaleFactor });
-
-        const frame = document.createElement('div');
-        frame.className = 'editor-page-frame';
-        frame.id = `editor-page-${pageIndex}`;
-        frame.style.width = `${viewport.width}px`;
-        frame.style.height = `${viewport.height}px`;
-        if (pageIndex === activePageIndex) frame.style.borderColor = 'var(--secondary)';
-
-        const canvas = document.createElement('canvas');
-        canvas.className = 'editor-canvas';
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        const context = canvas.getContext('2d', { alpha: false });
-
-        const overlay = document.createElement('div');
-        overlay.className = 'editor-overlay';
-        overlay.id = `editor-overlay-${pageIndex}`;
-
-        if (savedPageNodes[pageIndex]) {
-          savedPageNodes[pageIndex].forEach(clonedChild => {
-            const rehydrated = clonedChild.cloneNode(true);
-            overlay.appendChild(rehydrated);
-            const delBtn = rehydrated.querySelector('.editor-node-delete-btn');
-            const resizeHandle = rehydrated.querySelector('.editor-node-resize-handle');
-            makeElementDraggable(rehydrated, overlay);
-            if (resizeHandle) makeElementResizable(rehydrated, resizeHandle);
-            if (delBtn) {
-              delBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                rehydrated.remove();
-              });
-            }
+    // Restore previously saved annotations for this page
+    if (savedPageNodes[pageIndex]) {
+      savedPageNodes[pageIndex].forEach(clonedChild => {
+        const rehydrated = clonedChild.cloneNode(true);
+        overlay.appendChild(rehydrated);
+        const delBtn = rehydrated.querySelector('.editor-node-delete-btn');
+        const resizeHandle = rehydrated.querySelector('.editor-node-resize-handle');
+        makeElementDraggable(rehydrated, overlay);
+        if (resizeHandle) makeElementResizable(rehydrated, resizeHandle);
+        if (delBtn) {
+          delBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            rehydrated.remove();
           });
         }
-
-        frame.appendChild(canvas);
-        frame.appendChild(overlay);
-        workspace.appendChild(frame);
-
-        requestAnimationFrame(async () => {
-          await page.render({ canvasContext: context, viewport: viewport }).promise;
-        });
-
-        frame.addEventListener('click', () => {
-          activePageIndex = pageIndex;
-          document.querySelectorAll('.editor-page-frame').forEach(f => f.style.borderColor = 'rgba(255,255,255,0.15)');
-          frame.style.borderColor = 'var(--secondary)';
-        });
-      }
+      });
     }
+
+    frame.appendChild(canvas);
+    frame.appendChild(overlay);
+    workspace.appendChild(frame);
+
+    await page.render({ canvasContext: context, viewport: viewport }).promise;
   }
 
   async function loadFile(file) {
