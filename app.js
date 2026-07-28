@@ -996,20 +996,38 @@ function initSecurityTab() {
       const pwd = passwordInput ? passwordInput.value : '';
       let pdf;
       try {
-        pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0), password: pwd }).promise;
-      } catch (pErr) {
-        if (pErr.name === 'PasswordException' || (pErr.message && pErr.message.includes('password'))) {
-          filePagesLabel.textContent = "Pages: Encrypted PDF";
-          previewContainer.innerHTML = `
-            <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5rem; gap: 0.5rem; text-align: center;">
-              <svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-              <span style="color: var(--text-main); font-weight: 600; font-size: 0.9rem;">Password Protected Document</span>
-              <span style="color: var(--text-muted); font-size: 0.75rem;">Enter password in the sidebar to preview document</span>
-            </div>
-          `;
-          return;
+        // Try opening without password first (succeeds for unencrypted files even if user entered a password to encrypt)
+        pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
+      } catch (noPwdErr) {
+        if (noPwdErr.name === 'PasswordException' || (noPwdErr.message && noPwdErr.message.includes('password'))) {
+          if (pwd) {
+            try {
+              pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0), password: pwd }).promise;
+            } catch (withPwdErr) {
+              filePagesLabel.textContent = "Pages: Encrypted PDF";
+              previewContainer.innerHTML = `
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5rem; gap: 0.5rem; text-align: center;">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  <span style="color: var(--text-main); font-weight: 600; font-size: 0.9rem;">Incorrect Password</span>
+                  <span style="color: var(--text-muted); font-size: 0.75rem;">Enter correct password in the sidebar to preview document</span>
+                </div>
+              `;
+              return;
+            }
+          } else {
+            filePagesLabel.textContent = "Pages: Encrypted PDF";
+            previewContainer.innerHTML = `
+              <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5rem; gap: 0.5rem; text-align: center;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                <span style="color: var(--text-main); font-weight: 600; font-size: 0.9rem;">Password Protected Document</span>
+                <span style="color: var(--text-muted); font-size: 0.75rem;">Enter password in the sidebar to preview document</span>
+              </div>
+            `;
+            return;
+          }
+        } else {
+          throw noPwdErr;
         }
-        throw pErr;
       }
 
       filePagesLabel.textContent = `Pages: ${pdf.numPages}`;
@@ -2388,7 +2406,12 @@ function initCompressTab() {
       const canvas = document.createElement('canvas');
       canvas.width = viewport.width;
       canvas.height = viewport.height;
+      canvas.style.backgroundColor = '#ffffff';
+      canvas.style.borderRadius = '6px';
+      canvas.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.4)';
       const context = canvas.getContext('2d');
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
       
       previewContainer.innerHTML = '';
       const wrap = document.createElement('div');
@@ -2610,7 +2633,12 @@ function initConvertersTab() {
         const canvas = document.createElement('canvas');
         canvas.width = viewport.width;
         canvas.height = viewport.height;
+        canvas.style.backgroundColor = '#ffffff';
+        canvas.style.borderRadius = '6px';
+        canvas.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.4)';
         const context = canvas.getContext('2d');
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, canvas.width, canvas.height);
         
         previewContainer.innerHTML = '';
         const wrap = document.createElement('div');

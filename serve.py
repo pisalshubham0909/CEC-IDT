@@ -451,7 +451,6 @@ def run_server():
                                     img_bytes = pix.tobytes('png')
                                     img_stream = io.BytesIO(img_bytes)
                                     slide.shapes.add_picture(img_stream, Inches(0), Inches(0), Inches(pw / 72.0), Inches(ph / 72.0))
-                            else:
                                 # High-Fidelity Canvas Mode (100% Exact Visual Format Preservation)
                                 pix = page.get_pixmap(dpi=300)
                                 img_bytes = pix.tobytes('png')
@@ -464,6 +463,32 @@ def run_server():
                     except Exception as conv_err:
                         print(f"Backend PDF to PPTX conversion error: {conv_err}")
                         self.send_error(500, f"PDF to PPTX conversion failed: {conv_err}")
+
+                elif self.path == "/api/convert_pdf_to_excel":
+                    try:
+                        import fitz, openpyxl
+                        doc_pdf = fitz.open('pdf', body)
+                        wb = openpyxl.Workbook()
+                        ws = wb.active
+                        ws.title = "Extracted PDF Data"
+                        
+                        row_idx = 1
+                        for page in doc_pdf:
+                            text = page.get_text()
+                            lines = text.splitlines()
+                            for line in lines:
+                                if line.strip():
+                                    parts = [p.strip() for p in line.split('\t') if p.strip()] or [line.strip()]
+                                    for col_idx, val in enumerate(parts, start=1):
+                                        ws.cell(row=row_idx, column=col_idx, value=val)
+                                    row_idx += 1
+                                    
+                        out_b = io.BytesIO()
+                        wb.save(out_b)
+                        self.send_api_response(out_b.getvalue(), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                    except Exception as conv_err:
+                        print(f"Backend PDF to Excel conversion error: {conv_err}")
+                        self.send_error(500, f"PDF to Excel conversion failed: {conv_err}")
 
                 elif self.path == "/api/convert_word_to_pdf":
                     try:
