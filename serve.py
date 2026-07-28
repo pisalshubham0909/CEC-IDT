@@ -469,7 +469,7 @@ def run_server():
                         
                         import docx, html
                         from reportlab.lib.pagesizes import letter, landscape
-                        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+                        from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, Image as RLImage
                         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
                         from reportlab.lib import colors
 
@@ -484,37 +484,70 @@ def run_server():
                         normal_style = styles['Normal']
                         story = []
 
-                        def _get_p_element(p_item):
+                        def _extract_images_from_run(r_element, doc_part):
+                            imgs = []
+                            try:
+                                drawings = r_element._r.xpath('.//w:drawing')
+                                for d in drawings:
+                                    blips = d.xpath('.//a:blip/@r:embed')
+                                    for rId in blips:
+                                        if rId in doc_part.related_parts:
+                                            img_data = doc_part.related_parts[rId].blob
+                                            img_stream = io.BytesIO(img_data)
+                                            imgs.append(RLImage(img_stream, width=min(usable_w, 400), height=200))
+                            except Exception:
+                                pass
+                            return imgs
+
+                        def _get_p_elements(p_item, doc_part):
                             runs_html = []
+                            run_imgs = []
+                            max_font_pt = 11
+                            
                             for r in p_item.runs:
                                 t = r.text
-                                if not t: continue
-                                t_html = html.escape(t)
-                                if r.bold: t_html = f'<b>{t_html}</b>'
-                                if r.italic: t_html = f'<i>{t_html}</i>'
-                                if r.font.color and r.font.color.rgb:
-                                    hex_col = '#' + str(r.font.color.rgb)
-                                    t_html = f'<font color="{hex_col}">{t_html}</font>'
-                                runs_html.append(t_html)
+                                if t:
+                                    t_html = html.escape(t)
+                                    if r.bold: t_html = f'<b>{t_html}</b>'
+                                    if r.italic: t_html = f'<i>{t_html}</i>'
+                                    if r.font.color and r.font.color.rgb:
+                                        hex_col = '#' + str(r.font.color.rgb)
+                                        t_html = f'<font color="{hex_col}">{t_html}</font>'
+                                    runs_html.append(t_html)
+                                    if r.font.size and r.font.size.pt:
+                                        max_font_pt = max(max_font_pt, int(r.font.size.pt))
+                                
+                                imgs = _extract_images_from_run(r, doc_part)
+                                run_imgs.extend(imgs)
                             
+                            elements = []
                             para_text = ''.join(runs_html) if runs_html else html.escape(p_item.text)
-                            if not para_text.strip():
-                                return Spacer(1, 6)
                             
-                            align_code = 0
-                            if p_item.alignment == docx.enum.text.WD_ALIGN_PARAGRAPH.CENTER: align_code = 1
-                            elif p_item.alignment == docx.enum.text.WD_ALIGN_PARAGRAPH.RIGHT: align_code = 2
-                            elif p_item.alignment == docx.enum.text.WD_ALIGN_PARAGRAPH.JUSTIFY: align_code = 4
+                            if para_text.strip():
+                                if p_item.style.name.startswith('Heading 1'): max_font_pt = max(max_font_pt, 20)
+                                elif p_item.style.name.startswith('Heading 2'): max_font_pt = max(max_font_pt, 16)
+                                elif p_item.style.name.startswith('Heading 3'): max_font_pt = max(max_font_pt, 13)
+                                
+                                align_code = 0
+                                if p_item.alignment == docx.enum.text.WD_ALIGN_PARAGRAPH.CENTER: align_code = 1
+                                elif p_item.alignment == docx.enum.text.WD_ALIGN_PARAGRAPH.RIGHT: align_code = 2
+                                elif p_item.alignment == docx.enum.text.WD_ALIGN_PARAGRAPH.JUSTIFY: align_code = 4
 
-                            p_style = ParagraphStyle(
-                                'DocxParaStyle',
-                                parent=normal_style,
-                                fontSize=11,
-                                leading=15,
-                                alignment=align_code,
-                                spaceAfter=6
-                            )
-                            return Paragraph(para_text, p_style)
+                                p_style = ParagraphStyle(
+                                    'DocxParaStyle',
+                                    parent=normal_style,
+                                    fontSize=max_font_pt,
+                                    leading=int(max_font_pt * 1.3),
+                                    alignment=align_code,
+                                    spaceAfter=6
+                                )
+                                elements.append(Paragraph(para_text, p_style))
+                            
+                            for img_item in run_imgs:
+                                elements.append(img_item)
+                                elements.append(Spacer(1, 6))
+                                
+                            return elements
 
                         def _get_tbl_element(tbl_item):
                             table_data = []
@@ -541,23 +574,15 @@ def run_server():
                                 return t
                             return None
 
-                        if hasattr(doc_in, 'iter_inner_content'):
-                            for item in doc_in.iter_inner_content():
-                                if isinstance(item, docx.text.paragraph.Paragraph):
-                                    story.append(_get_p_element(item))
-                                elif isinstance(item, docx.table.Table):
-                                    t_el = _get_tbl_element(item)
-                                    if t_el:
-                                        story.append(t_el)
-                                        story.append(Spacer(1, 8))
-                        else:
-                            for p_item in doc_in.paragraphs:
-                                story.append(_get_p_element(p_item))
-                            for tbl_item in doc_in.tables:
-                                t_el = _get_tbl_element(tbl_item)
-                                if t_el:
-                                    story.append(t_el)
-                                    story.append(Spacer(1, 8))
+                        for p_item in doc_in.paragraphs:
+                            p_els = _get_p_elements(p_item, doc_in.part)
+                            story.extend(p_els)
+                            
+                        for tbl_item in doc_in.tables:
+                            t_el = _get_tbl_element(tbl_item)
+                            if t_el:
+                                story.append(t_el)
+                                story.append(Spacer(1, 8))
 
                         if not story:
                             story.append(Paragraph('Document Content Empty', normal_style))

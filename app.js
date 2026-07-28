@@ -523,26 +523,29 @@ function initImagesTab() {
    3. PDF RESIZER TAB LOGIC
    ========================================================================== */
 function initResizerTab() {
-  let targetFile = null;
-  let resizedPdfUrl = null;
-  let resizedPdfBytes = null;
+  let resizeQueue = [];
+  let resultBlobUrl = null;
+  let resultBlob = null;
+  let isZipOutput = false;
   
   const dropzone = document.getElementById('resize-dropzone');
   const fileInput = document.getElementById('resize-file-input');
   const infoBlock = document.getElementById('resize-file-info');
+  const fileListContainer = document.getElementById('resize-file-list');
+  const queueCountLabel = document.getElementById('resize-queue-count');
   const previewContainer = document.getElementById('resize-canvas-preview');
   const btnRun = document.getElementById('btn-run-resize');
   
-  const fileNameLabel = document.getElementById('resize-file-name');
-  const fileSizeLabel = document.getElementById('resize-file-size');
-  const filePagesLabel = document.getElementById('resize-file-pages');
-  const btnClear = document.getElementById('btn-clear-resize');
+  const btnAddMore = document.getElementById('btn-add-more-resize');
+  const btnClearAll = document.getElementById('btn-clear-all-resize');
 
   // Options inputs
   const sizeSelect = document.getElementById('resize-target-format');
   const orientationSelect = document.getElementById('resize-orientation');
   const scaleModeSelect = document.getElementById('resize-scaling-mode');
   const outputNameInput = document.getElementById('resize-output-name');
+  const batchModeGroup = document.getElementById('resize-batch-mode-group');
+  const batchModeSelect = document.getElementById('resize-batch-mode');
 
   const progressContainer = document.getElementById('resize-progress');
   const progressBar = document.getElementById('resize-progress-bar');
@@ -550,6 +553,7 @@ function initResizerTab() {
   const progressMsg = document.getElementById('resize-progress-msg');
   
   const successCard = document.getElementById('resize-success');
+  const successTitle = document.getElementById('resize-success-title');
   const btnDownload = document.getElementById('btn-download-resize');
 
   dropzone.addEventListener('click', () => fileInput.click());
@@ -558,14 +562,13 @@ function initResizerTab() {
     btnBrowseResize.addEventListener('click', () => fileInput.click());
   }
 
+  if (btnAddMore) {
+    btnAddMore.addEventListener('click', () => fileInput.click());
+  }
+
   fileInput.addEventListener('change', async (e) => {
     if (e.target.files.length > 0) {
-      try {
-        const processedFile = await getOrDecryptFile(e.target.files[0]);
-        loadFile(processedFile);
-      } catch (err) {
-        console.warn(err.message);
-      }
+      await loadFiles(Array.from(e.target.files));
     }
     fileInput.value = '';
   });
@@ -581,45 +584,98 @@ function initResizerTab() {
     e.preventDefault();
     dropzone.classList.remove('dragover');
     if (e.dataTransfer.files.length > 0) {
+      await loadFiles(Array.from(e.dataTransfer.files));
+    }
+  });
+
+  async function loadFiles(fileList) {
+    for (const f of fileList) {
+      const isPdf = f.type === 'application/pdf' || f.name.toLowerCase().endsWith('.pdf');
+      if (!isPdf) continue;
+      
       try {
-        const processedFile = await getOrDecryptFile(e.dataTransfer.files[0]);
-        loadFile(processedFile);
+        const processedFile = await getOrDecryptFile(f);
+        let numPages = '--';
+        try {
+          const arrayBuffer = await fileToArrayBuffer(processedFile);
+          pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          numPages = pdf.numPages;
+        } catch (pErr) {
+          console.warn("Could not parse page count:", pErr);
+        }
+
+        resizeQueue.push({
+          id: 'res_' + Math.random().toString(36).substr(2, 9),
+          file: processedFile,
+          name: processedFile.name,
+          size: processedFile.size,
+          pages: numPages
+        });
       } catch (err) {
         console.warn(err.message);
       }
     }
-  });
+    renderResizeQueue();
+  }
 
-  async function loadFile(file) {
-    const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-    if (!isPdf) {
-      alert("Only PDF files are supported in this tool.");
-      return;
-    }
-    
-    targetFile = file;
+  function renderResizeQueue() {
     successCard.style.display = 'none';
     
-    // UI state toggles
+    if (resizeQueue.length === 0) {
+      dropzone.style.display = 'flex';
+      infoBlock.style.display = 'none';
+      previewContainer.style.display = 'none';
+      if (batchModeGroup) batchModeGroup.style.display = 'none';
+      btnRun.disabled = true;
+      return;
+    }
+
     dropzone.style.display = 'none';
     infoBlock.style.display = 'block';
     previewContainer.style.display = 'flex';
     btnRun.disabled = false;
     
-    fileNameLabel.textContent = file.name;
-    fileSizeLabel.textContent = formatBytes(file.size);
-    filePagesLabel.textContent = "Loading pages...";
-    
+    if (batchModeGroup) {
+      batchModeGroup.style.display = resizeQueue.length > 1 ? 'block' : 'none';
+    }
+
+    if (queueCountLabel) {
+      queueCountLabel.textContent = `${resizeQueue.length} PDF File${resizeQueue.length > 1 ? 's' : ''} Loaded`;
+    }
+
+    fileListContainer.innerHTML = '';
+    resizeQueue.forEach((item, index) => {
+      const el = document.createElement('div');
+      el.className = 'file-item';
+      el.dataset.id = item.id;
+      el.innerHTML = `
+        <div class="file-thumbnail"><span class="file-thumbnail-icon" style="color: var(--warning)">PDF</span></div>
+        <div class="file-info">
+          <div class="file-name">${item.name}</div>
+          <div class="file-meta"><span>${formatBytes(item.size)}</span><span>Pages: ${item.pages}</span></div>
+        </div>
+        <div class="file-actions">
+          ${index > 0 ? `<button class="file-btn" onclick="moveResizeItem(${index}, -1)"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg></button>` : ''}
+          ${index < resizeQueue.length - 1 ? `<button class="file-btn" onclick="moveResizeItem(${index}, 1)"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg></button>` : ''}
+          <button class="file-btn delete" onclick="deleteResizeItem('${item.id}')"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        </div>
+      `;
+      fileListContainer.appendChild(el);
+    });
+
+    renderFirstPagePreview();
+  }
+
+  async function renderFirstPagePreview() {
+    if (resizeQueue.length === 0) return;
     previewContainer.innerHTML = '<span style="color: var(--text-muted); font-size: 0.85rem;">Rendering live page format preview...</span>';
 
     try {
-      const arrayBuffer = await fileToArrayBuffer(file);
+      const firstItem = resizeQueue[0];
+      const arrayBuffer = await fileToArrayBuffer(firstItem.file);
       pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      
-      filePagesLabel.textContent = `Pages: ${pdf.numPages}`;
-      
-      // Render first page preview
       const page = await pdf.getPage(1);
       const viewport = page.getViewport({ scale: 0.4 });
       
@@ -637,22 +693,36 @@ function initResizerTab() {
       await page.render({ canvasContext: context, viewport: viewport }).promise;
     } catch (e) {
       console.error(e);
-      filePagesLabel.textContent = "Pages: Error";
+      previewContainer.innerHTML = '<span style="color: var(--text-muted); font-size: 0.85rem;">Preview unavailable</span>';
     }
   }
 
-  btnClear.addEventListener('click', () => {
-    targetFile = null;
-    dropzone.style.display = 'flex';
-    infoBlock.style.display = 'none';
-    previewContainer.style.display = 'none';
-    btnRun.disabled = true;
-    successCard.style.display = 'none';
-  });
+  window.deleteResizeItem = (id) => {
+    resizeQueue = resizeQueue.filter(item => item.id !== id);
+    renderResizeQueue();
+  };
+
+  window.moveResizeItem = (index, direction) => {
+    const targetIdx = index + direction;
+    if (targetIdx >= 0 && targetIdx < resizeQueue.length) {
+      const temp = resizeQueue[index];
+      resizeQueue[index] = resizeQueue[targetIdx];
+      resizeQueue[targetIdx] = temp;
+      renderResizeQueue();
+    }
+  };
+
+  if (btnClearAll) {
+    btnClearAll.addEventListener('click', () => {
+      resizeQueue = [];
+      renderResizeQueue();
+    });
+  }
 
   btnRun.addEventListener('click', async () => {
+    if (resizeQueue.length === 0) return;
+    
     btnRun.disabled = true;
-    btnClear.disabled = true;
     progressContainer.style.display = 'block';
     successCard.style.display = 'none';
 
@@ -662,33 +732,105 @@ function initResizerTab() {
         orientation: orientationSelect.value,
         scalingMode: scaleModeSelect.value
       };
-      
-      resizedPdfBytes = await resizePDF(targetFile, options, (progress, message) => {
-        progressBar.style.width = `${progress * 100}%`;
-        progressPercent.textContent = `${Math.round(progress * 100)}%`;
-        progressMsg.textContent = message;
-      });
 
-      if (resizedPdfUrl) URL.revokeObjectURL(resizedPdfUrl);
-      const blob = new Blob([resizedPdfBytes], { type: 'application/pdf' });
-      resizedPdfUrl = URL.createObjectURL(blob);
+      const isBatch = resizeQueue.length > 1;
+      const batchMode = batchModeSelect ? batchModeSelect.value : 'combine';
+      
+      if (isBatch && batchMode === 'zip' && typeof JSZip !== 'undefined') {
+        isZipOutput = true;
+        const zip = new JSZip();
+        
+        for (let i = 0; i < resizeQueue.length; i++) {
+          const item = resizeQueue[i];
+          const progressStep = (i / resizeQueue.length);
+          progressMsg.textContent = `Resizing PDF ${i + 1} of ${resizeQueue.length}: ${item.name}`;
+          
+          const resizedBytes = await resizePDF(item.file, options, (p, msg) => {
+            const overall = progressStep + (p / resizeQueue.length);
+            progressBar.style.width = `${overall * 100}%`;
+            progressPercent.textContent = `${Math.round(overall * 100)}%`;
+          });
+          
+          const outFileName = item.name.replace(/\.pdf$/i, '') + '_Resized.pdf';
+          zip.file(outFileName, resizedBytes);
+        }
+        
+        progressMsg.textContent = "Compressing resized files into ZIP archive...";
+        resultBlob = await zip.generateAsync({ type: 'blob' });
+        if (resultBlobUrl) URL.revokeObjectURL(resultBlobUrl);
+        resultBlobUrl = URL.createObjectURL(resultBlob);
+        
+        if (successTitle) successTitle.textContent = "Batch Resizing Complete! (ZIP Archive)";
+        btnDownload.textContent = "Download ZIP Archive";
+      } else {
+        isZipOutput = false;
+        if (isBatch) {
+          // Resize each file and combine into a single merged PDF document
+          const resizedByteList = [];
+          for (let i = 0; i < resizeQueue.length; i++) {
+            const item = resizeQueue[i];
+            const progressStep = (i / resizeQueue.length);
+            progressMsg.textContent = `Resizing PDF ${i + 1} of ${resizeQueue.length}: ${item.name}`;
+            
+            const bytes = await resizePDF(item.file, options, (p, msg) => {
+              const overall = progressStep + (p / resizeQueue.length);
+              progressBar.style.width = `${overall * 100}%`;
+              progressPercent.textContent = `${Math.round(overall * 100)}%`;
+            });
+            resizedByteList.push(bytes);
+          }
+
+          progressMsg.textContent = "Combining resized PDF documents...";
+          const combinedDoc = await PDFLib.PDFDocument.create();
+          for (const b of resizedByteList) {
+            const doc = await PDFLib.PDFDocument.load(b);
+            const copiedPages = await combinedDoc.copyPages(doc, doc.getPageIndices());
+            copiedPages.forEach(p => combinedDoc.addPage(p));
+          }
+          const combinedBytes = await combinedDoc.save();
+          resultBlob = new Blob([combinedBytes], { type: 'application/pdf' });
+          if (resultBlobUrl) URL.revokeObjectURL(resultBlobUrl);
+          resultBlobUrl = URL.createObjectURL(resultBlob);
+          
+          if (successTitle) successTitle.textContent = `Batch Resizing Complete! (${resizeQueue.length} Files)`;
+          btnDownload.textContent = "Download Combined PDF";
+        } else {
+          // Single file resize
+          const item = resizeQueue[0];
+          const bytes = await resizePDF(item.file, options, (progress, message) => {
+            progressBar.style.width = `${progress * 100}%`;
+            progressPercent.textContent = `${Math.round(progress * 100)}%`;
+            progressMsg.textContent = message;
+          });
+
+          resultBlob = new Blob([bytes], { type: 'application/pdf' });
+          if (resultBlobUrl) URL.revokeObjectURL(resultBlobUrl);
+          resultBlobUrl = URL.createObjectURL(resultBlob);
+          
+          if (successTitle) successTitle.textContent = "Resizing Complete!";
+          btnDownload.textContent = "Download PDF";
+        }
+      }
 
       progressContainer.style.display = 'none';
       successCard.style.display = 'flex';
-      btnClear.disabled = false;
+      btnRun.disabled = false;
     } catch (err) {
-      alert(`Error resizing PDF: ${err.message}`);
+      alert(`Error resizing PDF(s): ${err.message}`);
       progressContainer.style.display = 'none';
       btnRun.disabled = false;
-      btnClear.disabled = false;
     }
   });
 
   btnDownload.addEventListener('click', () => {
-    if (resizedPdfUrl) {
+    if (resultBlobUrl) {
       const link = document.createElement('a');
-      link.href = resizedPdfUrl;
-      link.download = outputNameInput.value || 'Resized_Document.pdf';
+      link.href = resultBlobUrl;
+      if (isZipOutput) {
+        link.download = (outputNameInput.value || 'Resized_Documents').replace(/\.pdf$/i, '') + '.zip';
+      } else {
+        link.download = outputNameInput.value || 'Resized_Document.pdf';
+      }
       link.click();
     }
   });
