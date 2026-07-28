@@ -230,17 +230,17 @@ def run_server():
                             orig_len = len(body)
 
                             if level == 'high':
-                                max_dim = 1000
-                                quality = 35
-                                dpi = 120
+                                max_dim = 900
+                                quality = 30
+                                dpi = 110
                             elif level == 'low' or level == 'keep':
                                 max_dim = 1600
-                                quality = 65
-                                dpi = 200
+                                quality = 60
+                                dpi = 180
                             else: # medium
-                                max_dim = 1200
-                                quality = 45
-                                dpi = 150
+                                max_dim = 1100
+                                quality = 40
+                                dpi = 135
 
                             from PIL import Image
                             for page in doc:
@@ -271,8 +271,9 @@ def run_server():
 
                             comp_bytes = doc.tobytes(garbage=4, deflate=True, clean=True, deflate_images=True, deflate_fonts=True)
 
-                            # If stream compression achieved less than 20% size reduction, apply page raster compression pass!
-                            if len(comp_bytes) > (orig_len * 0.80) and len(doc) > 0:
+                            # Target 50% - 60%+ compression reduction on all documents
+                            target_max_size = int(orig_len * 0.48)
+                            if len(comp_bytes) > target_max_size and len(doc) > 0:
                                 new_doc = fitz.open()
                                 for p in doc:
                                     pix = p.get_pixmap(dpi=dpi)
