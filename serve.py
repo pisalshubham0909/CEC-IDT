@@ -309,33 +309,9 @@ def run_server():
                     
                 elif self.path == "/api/convert_pdf_to_word":
                     try:
-                        tbl_style = self.headers.get('X-Tbl-Style', 'blue_header')
                         mode = self.headers.get('X-Mode', 'layout')
-                        
                         import fitz, docx
                         from docx.shared import Pt, Inches, RGBColor
-                        from docx.oxml import parse_xml
-                        from docx.oxml.ns import nsdecls
-
-                        def _set_cell_bg(cell, fill_hex):
-                            tcPr = cell._tc.get_or_add_tcPr()
-                            shd = parse_xml(f'<w:shd {nsdecls("w")} w:fill="{fill_hex}"/>')
-                            tcPr.append(shd)
-
-                        def _set_tbl_borders(table):
-                            tblPr = table._tbl.tblPr
-                            border_col = "CCCCCC" if tbl_style != "minimal" else "E5E7EB"
-                            borders = parse_xml(
-                                f'<w:tblBorders {nsdecls("w")}>'
-                                f'<w:top w:val="single" w:sz="4" w:space="0" w:color="{border_col}"/>'
-                                f'<w:bottom w:val="single" w:sz="4" w:space="0" w:color="{border_col}"/>'
-                                f'<w:left w:val="none"/>'
-                                f'<w:right w:val="none"/>'
-                                f'<w:insideH w:val="single" w:sz="4" w:space="0" w:color="E5E7EB"/>'
-                                f'<w:insideV w:val="none"/>'
-                                f'</w:tblBorders>'
-                            )
-                            tblPr.append(borders)
 
                         doc_pdf = fitz.open('pdf', body)
                         doc_word = docx.Document()
@@ -348,77 +324,20 @@ def run_server():
                             section = doc_word.sections[0] if page_idx == 0 else doc_word.add_section()
                             section.page_width = Inches(pw / 72.0)
                             section.page_height = Inches(ph / 72.0)
-                            section.top_margin = Inches(0.4)
-                            section.bottom_margin = Inches(0.4)
-                            section.left_margin = Inches(0.4)
-                            section.right_margin = Inches(0.4)
+                            section.top_margin = Inches(0)
+                            section.bottom_margin = Inches(0)
+                            section.left_margin = Inches(0)
+                            section.right_margin = Inches(0)
                             
-                            printable_w = (pw / 72.0) - 0.8
-                            blocks = p.get_text('dict')['blocks']
-                            has_text = any(b.get('type') == 0 and len(b.get('lines', [])) > 0 for b in blocks)
-                            
-                            if has_text:
-                                table_rows_buffer = []
-
-                                def _flush_tbl(word_doc, rows_buf, p_w):
-                                    if not rows_buf: return
-                                    max_cols = max(len(r) for r in rows_buf)
-                                    tbl = word_doc.add_table(rows=len(rows_buf), cols=max_cols)
-                                    tbl.autofit = True
-                                    _set_tbl_borders(tbl)
-                                    
-                                    header_bg = "0284C7" if tbl_style == "blue_header" else ("1E293B" if tbl_style == "grid" else "F3F4F6")
-                                    header_text_white = tbl_style != "minimal"
-                                    col_w = Inches(max(0.5, p_w / float(max_cols)))
-                                    
-                                    for r_i, row_items in enumerate(rows_buf):
-                                        is_header = (r_i == 0)
-                                        for c_i, cell_info in enumerate(row_items):
-                                            if c_i < max_cols:
-                                                cell = tbl.cell(r_i, c_i)
-                                                cell.width = col_w
-                                                cell.text = cell_info.get('text', '')
-                                                p_c = cell.paragraphs[0]
-                                                for run in p_c.runs:
-                                                    run.font.size = Pt(max(8, min(36, round(cell_info.get('size', 10)))))
-                                                    if cell_info.get('bold'): run.font.bold = True
-                                                    if cell_info.get('italic'): run.font.italic = True
-                                                    if is_header and header_text_white:
-                                                        _set_cell_bg(cell, header_bg)
-                                                        run.font.color.rgb = RGBColor(255, 255, 255)
-                                                    elif cell_info.get('color'):
-                                                        c_int = cell_info['color']
-                                                        r_c = (c_int >> 16) & 0xFF
-                                                        g_c = (c_int >> 8) & 0xFF
-                                                        b_c = c_int & 0xFF
-                                                        run.font.color.rgb = RGBColor(r_c, g_c, b_c)
-                                    word_doc.add_paragraph()
-                                    rows_buf.clear()
-
-                                for b in blocks:
-                                    if b.get('type') == 0:
-                                        for line in b.get('lines', []):
-                                            spans = line.get('spans', [])
-                                            if not spans: continue
-                                            
-                                            cols = []
-                                            curr_col_spans = [spans[0]]
-                                            for i_s in range(1, len(spans)):
-                                                gap = spans[i_s]['bbox'][0] - spans[i_s-1]['bbox'][2]
-                                                if gap > 18:
-                                                    txt_col = ' '.join(s['text'] for s in curr_col_spans)
-                                                    cols.append({'text': txt_col, 'size': curr_col_spans[0].get('size', 10), 'bold': (curr_col_spans[0].get('flags', 0) & 2) != 0, 'italic': (curr_col_spans[0].get('flags', 0) & 1) != 0, 'color': curr_col_spans[0].get('color', 0)})
-                                                    curr_col_spans = [spans[i_s]]
-                                                else:
-                                                    curr_col_spans.append(spans[i_s])
-                                            
-                                            txt_col = ' '.join(s['text'] for s in curr_col_spans)
-                                            cols.append({'text': txt_col, 'size': curr_col_spans[0].get('size', 10), 'bold': (curr_col_spans[0].get('flags', 0) & 2) != 0, 'italic': (curr_col_spans[0].get('flags', 0) & 1) != 0, 'color': curr_col_spans[0].get('color', 0)})
-                                            
-                                            if len(cols) > 1:
-                                                table_rows_buffer.append(cols)
-                                            else:
-                                                _flush_tbl(doc_word, table_rows_buffer, printable_w)
+                            if mode == 'text':
+                                blocks = p.get_text('dict')['blocks']
+                                has_text = any(b.get('type') == 0 and len(b.get('lines', [])) > 0 for b in blocks)
+                                if has_text:
+                                    for b in blocks:
+                                        if b.get('type') == 0:
+                                            for line in b.get('lines', []):
+                                                spans = line.get('spans', [])
+                                                if not spans: continue
                                                 p_para = doc_word.add_paragraph()
                                                 p_para.paragraph_format.space_before = Pt(0)
                                                 p_para.paragraph_format.space_after = Pt(2)
@@ -438,13 +357,23 @@ def run_server():
                                                         g_c = (clr_int >> 8) & 0xFF
                                                         b_c = clr_int & 0xFF
                                                         run.font.color.rgb = RGBColor(r_c, g_c, b_c)
-
-                                _flush_tbl(doc_word, table_rows_buffer, printable_w)
+                                else:
+                                    pix = p.get_pixmap(dpi=300)
+                                    img_bytes = pix.tobytes('png')
+                                    img_stream = io.BytesIO(img_bytes)
+                                    p_para = doc_word.add_paragraph()
+                                    p_para.paragraph_format.space_before = Inches(0)
+                                    p_para.paragraph_format.space_after = Inches(0)
+                                    p_para.add_run().add_picture(img_stream, width=Inches(pw / 72.0), height=Inches(ph / 72.0))
                             else:
-                                pix = p.get_pixmap(dpi=200)
+                                # High-Fidelity Canvas Mode (100% Exact Visual Format Preservation)
+                                pix = p.get_pixmap(dpi=300)
                                 img_bytes = pix.tobytes('png')
                                 img_stream = io.BytesIO(img_bytes)
-                                doc_word.add_paragraph().add_run().add_picture(img_stream, width=Inches(printable_w))
+                                p_para = doc_word.add_paragraph()
+                                p_para.paragraph_format.space_before = Inches(0)
+                                p_para.paragraph_format.space_after = Inches(0)
+                                p_para.add_run().add_picture(img_stream, width=Inches(pw / 72.0), height=Inches(ph / 72.0))
 
                             if page_idx < len(doc_pdf) - 1:
                                 doc_word.add_page_break()
@@ -459,6 +388,7 @@ def run_server():
 
                 elif self.path == "/api/convert_pdf_to_pptx":
                     try:
+                        mode = self.headers.get('X-Mode', 'layout')
                         import fitz
                         from pptx import Presentation
                         from pptx.util import Inches, Pt
@@ -472,63 +402,55 @@ def run_server():
                             rect = page.rect
                             pw, ph = rect.width, rect.height
                             
-                            # Set slide dimensions to match EXACT 1-to-1 PDF page size
                             prs.slide_width = Inches(pw / 72.0)
                             prs.slide_height = Inches(ph / 72.0)
-                            
                             slide = prs.slides.add_slide(prs.slide_layouts[6])
-                            blocks = page.get_text('dict')['blocks']
-                            has_text = any(b.get('type') == 0 and len(b.get('lines', [])) > 0 for b in blocks)
                             
-                            if has_text:
-                                for b in blocks:
-                                    if b.get('type') == 0:
-                                        bbox = b.get('bbox', (0,0,100,50))
-                                        left = Inches(bbox[0] / 72.0)
-                                        top = Inches(bbox[1] / 72.0)
-                                        width = Inches(max(0.2, ((bbox[2] - bbox[0]) / 72.0) + 0.2))
-                                        height = Inches(max(0.2, ((bbox[3] - bbox[1]) / 72.0) + 0.1))
-                                        
-                                        txBox = slide.shapes.add_textbox(left, top, width, height)
-                                        tf = txBox.text_frame
-                                        tf.word_wrap = True
-                                        tf.margin_left = tf.margin_top = tf.margin_right = tf.margin_bottom = 0
-                                        
-                                        para_idx = 0
-                                        for line in b.get('lines', []):
-                                            p_para = tf.paragraphs[0] if para_idx == 0 else tf.add_paragraph()
-                                            para_idx += 1
-                                            for span in line.get('spans', []):
-                                                txt = span.get('text', '')
-                                                if not txt: continue
-                                                run = p_para.add_run()
-                                                run.text = txt
-                                                size_pt = span.get('size', 10)
-                                                run.font.size = Pt(max(6, min(72, round(size_pt))))
-                                                flags = span.get('flags', 0)
-                                                if flags & 2: run.font.bold = True
-                                                if flags & 1: run.font.italic = True
-                                                color_int = span.get('color', 0)
-                                                if color_int != 0:
-                                                    r = (color_int >> 16) & 0xFF
-                                                    g = (color_int >> 8) & 0xFF
-                                                    b_c = color_int & 0xFF
-                                                    run.font.color.rgb = RGBColor(r, g, b_c)
-                                    elif b.get('type') == 1:
-                                        bbox = b.get('bbox', (0,0,100,100))
-                                        left = Inches(bbox[0] / 72.0)
-                                        top = Inches(bbox[1] / 72.0)
-                                        width = Inches((bbox[2] - bbox[0]) / 72.0)
-                                        height = Inches((bbox[3] - bbox[1]) / 72.0)
-                                        img_bytes = b.get('image')
-                                        if img_bytes:
-                                            try:
-                                                img_stream = io.BytesIO(img_bytes)
-                                                slide.shapes.add_picture(img_stream, left, top, width, height)
-                                            except Exception:
-                                                pass
+                            if mode == 'text':
+                                blocks = page.get_text('dict')['blocks']
+                                has_text = any(b.get('type') == 0 and len(b.get('lines', [])) > 0 for b in blocks)
+                                if has_text:
+                                    for b in blocks:
+                                        if b.get('type') == 0:
+                                            bbox = b.get('bbox', (0,0,100,50))
+                                            left = Inches(bbox[0] / 72.0)
+                                            top = Inches(bbox[1] / 72.0)
+                                            width = Inches(max(0.2, ((bbox[2] - bbox[0]) / 72.0) + 0.2))
+                                            height = Inches(max(0.2, ((bbox[3] - bbox[1]) / 72.0) + 0.1))
+                                            
+                                            txBox = slide.shapes.add_textbox(left, top, width, height)
+                                            tf = txBox.text_frame
+                                            tf.word_wrap = True
+                                            tf.margin_left = tf.margin_top = tf.margin_right = tf.margin_bottom = 0
+                                            
+                                            para_idx = 0
+                                            for line in b.get('lines', []):
+                                                p_para = tf.paragraphs[0] if para_idx == 0 else tf.add_paragraph()
+                                                para_idx += 1
+                                                for span in line.get('spans', []):
+                                                    txt = span.get('text', '')
+                                                    if not txt: continue
+                                                    run = p_para.add_run()
+                                                    run.text = txt
+                                                    size_pt = span.get('size', 10)
+                                                    run.font.size = Pt(max(6, min(72, round(size_pt))))
+                                                    flags = span.get('flags', 0)
+                                                    if flags & 2: run.font.bold = True
+                                                    if flags & 1: run.font.italic = True
+                                                    color_int = span.get('color', 0)
+                                                    if color_int != 0:
+                                                        r = (color_int >> 16) & 0xFF
+                                                        g = (color_int >> 8) & 0xFF
+                                                        b_c = color_int & 0xFF
+                                                        run.font.color.rgb = RGBColor(r, g, b_c)
+                                else:
+                                    pix = page.get_pixmap(dpi=300)
+                                    img_bytes = pix.tobytes('png')
+                                    img_stream = io.BytesIO(img_bytes)
+                                    slide.shapes.add_picture(img_stream, Inches(0), Inches(0), Inches(pw / 72.0), Inches(ph / 72.0))
                             else:
-                                pix = page.get_pixmap(dpi=200)
+                                # High-Fidelity Canvas Mode (100% Exact Visual Format Preservation)
+                                pix = page.get_pixmap(dpi=300)
                                 img_bytes = pix.tobytes('png')
                                 img_stream = io.BytesIO(img_bytes)
                                 slide.shapes.add_picture(img_stream, Inches(0), Inches(0), Inches(pw / 72.0), Inches(ph / 72.0))
