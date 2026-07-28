@@ -1165,10 +1165,16 @@ function initSecurityTab() {
   
   btnDownload.addEventListener('click', () => {
     if (securedPdfUrl) {
+      let rawName = (outputNameInput && outputNameInput.value) ? outputNameInput.value.trim() : 'Protected_Document.pdf';
+      if (!rawName.toLowerCase().endsWith('.pdf')) {
+        rawName += '.pdf';
+      }
       const link = document.createElement('a');
       link.href = securedPdfUrl;
-      link.download = outputNameInput.value || 'Protected.pdf';
+      link.download = rawName;
+      document.body.appendChild(link);
       link.click();
+      document.body.removeChild(link);
     }
   });
 }

@@ -147,7 +147,7 @@ def run_server():
                                 fitz.PDF_PERM_PRINT |
                                 fitz.PDF_PERM_PRINT_HQ
                             )
-                            doc.save(out_buffer, encryption=fitz.PDF_ENCRYPT_AES_256, user_pw=password, owner_pw=owner_pw, permissions=perm, clean=False, garbage=0)
+                            doc.save(out_buffer, encryption=fitz.PDF_ENCRYPT_AES_256, user_pw=password, owner_pw=owner_pw, permissions=perm, clean=False, garbage=0, deflate=False)
                             doc.close()
                             res_bytes = out_buffer.getvalue()
                         except Exception as e_fitz:
