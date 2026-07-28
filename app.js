@@ -971,7 +971,7 @@ function initSecurityTab() {
     }
   });
   
-  async function loadFile(file) {
+  function loadFile(file) {
     securityFile = file;
     dropzone.style.display = 'none';
     infoBlock.style.display = 'block';
@@ -981,45 +981,9 @@ function initSecurityTab() {
     
     fileNameLabel.textContent = file.name;
     fileSizeLabel.textContent = formatBytes(file.size);
-    filePagesLabel.textContent = "Pages: Ready";
+    filePagesLabel.textContent = "PDF Document";
     
     outputNameInput.value = modeSelect.value === 'encrypt' ? file.name.replace('.pdf', '_Protected.pdf') : file.name.replace('.pdf', '_Unlocked.pdf');
-    
-    try {
-      const arrayBuffer = await fileToArrayBuffer(file);
-      if (typeof pdfjsLib !== 'undefined') {
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      }
-      
-      const pwd = passwordInput ? passwordInput.value : '';
-      try {
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
-        filePagesLabel.textContent = `Pages: ${pdf.numPages}`;
-      } catch (noPwdErr) {
-        if (pwd) {
-          try {
-            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0), password: pwd }).promise;
-            filePagesLabel.textContent = `Pages: ${pdf.numPages}`;
-          } catch (wErr) {
-            filePagesLabel.textContent = "Pages: Encrypted PDF";
-          }
-        } else {
-          filePagesLabel.textContent = "Pages: Encrypted PDF";
-        }
-      }
-    } catch (e) {
-      filePagesLabel.textContent = "Pages: Ready";
-    }
-  }
-
-  let pwdDebounceTimer = null;
-  if (passwordInput) {
-    passwordInput.addEventListener('input', () => {
-      clearTimeout(pwdDebounceTimer);
-      pwdDebounceTimer = setTimeout(() => {
-        if (securityFile) loadFile(securityFile);
-      }, 350);
-    });
   }
   
   btnClear.addEventListener('click', resetSecurityTab);
