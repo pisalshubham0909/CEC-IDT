@@ -1028,7 +1028,7 @@ function initSecurityTab() {
       canvas.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.4)';
       canvas.style.display = 'block';
 
-      const context = canvas.getContext('2d', { alpha: false });
+      const context = canvas.getContext('2d');
       context.fillStyle = '#ffffff';
       context.fillRect(0, 0, canvas.width, canvas.height);
       
@@ -1042,13 +1042,7 @@ function initSecurityTab() {
       wrap.appendChild(canvas);
       previewContainer.appendChild(wrap);
       
-      requestAnimationFrame(async () => {
-        try {
-          await page.render({ canvasContext: context, viewport: viewport }).promise;
-        } catch (rErr) {
-          console.warn("Security canvas render warning:", rErr);
-        }
-      });
+      await page.render({ canvasContext: context, viewport: viewport }).promise;
     } catch (e) {
       console.warn("Security preview fallback:", e);
       filePagesLabel.textContent = "Pages: Ready";
