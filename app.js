@@ -1879,13 +1879,48 @@ function initEditTab() {
     insertImageAnnotation(dataUrl);
   });
   
+  function makeImageBackgroundTransparent(dataUrl, threshold = 215) {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'Anonymous';
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || img.width;
+        canvas.height = img.naturalHeight || img.height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        
+        const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const data = imgData.data;
+        
+        for (let i = 0; i < data.length; i += 4) {
+          const r = data[i];
+          const g = data[i + 1];
+          const b = data[i + 2];
+          if (r >= threshold && g >= threshold && b >= threshold) {
+            data[i + 3] = 0; // Make white/light background transparent
+          }
+        }
+        ctx.putImageData(imgData, 0, 0);
+        resolve(canvas.toDataURL('image/png'));
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+  }
+
   btnAddImgSig.addEventListener('click', () => editLogoInput.click());
   editLogoInput.addEventListener('change', (e) => {
     if (e.target.files.length > 0) {
       const file = e.target.files[0];
       const reader = new FileReader();
-      reader.onload = (event) => {
-        insertImageAnnotation(event.target.result);
+      reader.onload = async (event) => {
+        let imgDataUrl = event.target.result;
+        const transparentCheck = document.getElementById('edit-transparent-logo');
+        if (transparentCheck && transparentCheck.checked) {
+          imgDataUrl = await makeImageBackgroundTransparent(imgDataUrl);
+        }
+        insertImageAnnotation(imgDataUrl);
       };
       reader.readAsDataURL(file);
     }

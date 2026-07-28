@@ -628,10 +628,18 @@
               </button>
               <button class="ctrl-btn" id="btn-edit-add-img-sig" style="width: 100%; text-align: left; padding: 0.75rem 1rem;" disabled>
                 Upload Logo/Sig
-                <input type="file" id="edit-logo-input" accept="image/png, image/jpeg" style="display: none;">
+                <input type="file" id="edit-logo-input" accept="image/png, image/jpeg, image/webp, image/svg+xml" style="display: none;">
               </button>
             </div>
             
+            <div class="toggle-switch" style="margin-bottom: 1rem;">
+              <div class="toggle-info">
+                <span class="toggle-name">Transparent Logo / Signature</span>
+                <span class="toggle-desc">Auto-remove white background from uploaded images</span>
+              </div>
+              <input type="checkbox" id="edit-transparent-logo" class="toggle-checkbox" checked>
+            </div>
+
             <div class="toggle-switch" style="margin-bottom: 1.25rem;">
               <div class="toggle-info">
                 <span class="toggle-name">Apply to All Pages</span>

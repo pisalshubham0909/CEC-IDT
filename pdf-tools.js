@@ -529,7 +529,16 @@ async function saveEditedPDF(originalBytes, annotations, applyToAllPages = false
       } else if (annot.type === 'image') {
         const response = await fetch(annot.imageSrc);
         const imgBuffer = await response.arrayBuffer();
-        const embeddedImg = await pdfDoc.embedPng(imgBuffer);
+        let embeddedImg;
+        if (annot.imageSrc.startsWith('data:image/jpeg') || annot.imageSrc.startsWith('data:image/jpg')) {
+          embeddedImg = await pdfDoc.embedJpg(imgBuffer);
+        } else {
+          try {
+            embeddedImg = await pdfDoc.embedPng(imgBuffer);
+          } catch (e) {
+            embeddedImg = await pdfDoc.embedJpg(imgBuffer);
+          }
+        }
         
         const pdfW = annot.width * width;
         const pdfH = annot.height * height;
