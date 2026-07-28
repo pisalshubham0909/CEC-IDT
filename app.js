@@ -12,20 +12,30 @@ document.addEventListener('DOMContentLoaded', () => {
   initSecurityTab();
   initConvertersTab();
   initGlobalCardEffects();
-});
+// Set PDF.js Worker globally ONCE for zero-overhead background parsing
+if (typeof pdfjsLib !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
 
 /**
- * Premium mouse hover glow effects on dashboard cards
+ * Premium mouse hover glow effects on dashboard cards (throttled with rAF for 60fps smoothness)
  */
 function initGlobalCardEffects() {
   document.querySelectorAll('.tool-card').forEach(card => {
+    let ticking = false;
     card.addEventListener('mousemove', e => {
-      const rect = card.getBoundingClientRect();
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      card.style.setProperty('--x', `${x}px`);
-      card.style.setProperty('--y', `${y}px`);
-    });
+      if (!ticking) {
+        requestAnimationFrame(() => {
+          const rect = card.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          const y = e.clientY - rect.top;
+          card.style.setProperty('--x', `${x}px`);
+          card.style.setProperty('--y', `${y}px`);
+          ticking = false;
+        });
+        ticking = true;
+      }
+    }, { passive: true });
   });
 }
 
@@ -1715,7 +1725,8 @@ function initEditTab() {
       for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
         const pageIndex = pageNum - 1;
         const page = await pdf.getPage(pageNum);
-        const viewport = page.getViewport({ scale: 1.0 });
+        const scaleFactor = Math.min(1.0, 750 / page.getViewport({ scale: 1.0 }).width);
+        const viewport = page.getViewport({ scale: scaleFactor });
         
         const frame = document.createElement('div');
         frame.className = 'editor-page-frame';
@@ -1727,7 +1738,7 @@ function initEditTab() {
         canvas.className = 'editor-canvas';
         canvas.width = viewport.width;
         canvas.height = viewport.height;
-        const context = canvas.getContext('2d');
+        const context = canvas.getContext('2d', { alpha: false });
         
         const overlay = document.createElement('div');
         overlay.className = 'editor-overlay';
@@ -1737,7 +1748,10 @@ function initEditTab() {
         frame.appendChild(overlay);
         workspace.appendChild(frame);
         
-        await page.render({ canvasContext: context, viewport: viewport }).promise;
+        // Render asynchronously to prevent main thread blocking
+        requestAnimationFrame(async () => {
+          await page.render({ canvasContext: context, viewport: viewport }).promise;
+        });
         
         frame.addEventListener('click', () => {
           activePageIndex = pageIndex;
