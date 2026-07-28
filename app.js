@@ -1084,7 +1084,7 @@ function initSecurityTab() {
   }
   
   btnRun.addEventListener('click', async () => {
-    const password = passwordInput ? passwordInput.value.trim() : '';
+    const password = passwordInput ? passwordInput.value : '';
     if (!password && modeSelect.value === 'encrypt') {
       if (passwordInput) {
         passwordInput.style.borderColor = 'var(--error)';
@@ -1098,14 +1098,8 @@ function initSecurityTab() {
     btnClear.disabled = true;
     progressContainer.style.display = 'block';
     successCard.style.display = 'none';
-    successCard.style.display = 'none';
     
     try {
-      const password = passwordInput.value;
-      if (!password && modeSelect.value === 'encrypt') {
-        throw new Error("Password is required for encryption.");
-      }
-      
       const fileBytes = await fileToArrayBuffer(securityFile);
       
       if (modeSelect.value === 'encrypt') {
