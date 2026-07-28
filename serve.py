@@ -17,14 +17,16 @@ def run_server():
     class CORSRequestHandler(handler):
         def end_headers(self):
             self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE')
+            self.send_header('Access-Control-Allow-Headers', '*')
             self.send_header('Cache-Control', 'no-store, no-cache, must-revalidate, max-age=0')
             super().end_headers()
 
         def do_OPTIONS(self):
             self.send_response(200)
             self.send_header('Access-Control-Allow-Origin', '*')
-            self.send_header('Access-Control-Allow-Methods', 'POST, GET, OPTIONS')
-            self.send_header('Access-Control-Allow-Headers', 'X-Password, X-Level, X-Mode, Content-Type, X-Session-ID')
+            self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS, PUT, DELETE')
+            self.send_header('Access-Control-Allow-Headers', '*')
             self.end_headers()
 
         def send_api_response(self, data, content_type="application/octet-stream"):

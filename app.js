@@ -977,16 +977,17 @@ function initSecurityTab() {
     infoBlock.style.display = 'block';
     btnRun.disabled = false;
     successCard.style.display = 'none';
+    if (passwordInput) passwordInput.style.borderColor = '';
     
     fileNameLabel.textContent = file.name;
     fileSizeLabel.textContent = formatBytes(file.size);
-    filePagesLabel.textContent = "Reading pages...";
+    filePagesLabel.textContent = "PDF Document";
     
     outputNameInput.value = modeSelect.value === 'encrypt' ? file.name.replace('.pdf', '_Protected.pdf') : file.name.replace('.pdf', '_Unlocked.pdf');
     
     if (previewContainer) {
       previewContainer.style.display = 'flex';
-      previewContainer.innerHTML = '<span style="color: var(--text-muted); font-size: 0.85rem;">Rendering preview...</span>';
+      previewContainer.innerHTML = '<span style="color: var(--text-muted); font-size: 0.85rem;">Document Loaded</span>';
     }
     
     try {
@@ -998,41 +999,36 @@ function initSecurityTab() {
       const pwd = passwordInput ? passwordInput.value : '';
       let pdf;
       try {
-        // Try opening without password first
         pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
       } catch (noPwdErr) {
-        if (noPwdErr.name === 'PasswordException' || (noPwdErr.message && noPwdErr.message.includes('password'))) {
-          if (pwd) {
-            try {
-              pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0), password: pwd }).promise;
-            } catch (withPwdErr) {
-              filePagesLabel.textContent = "Pages: Encrypted PDF";
-              if (previewContainer) {
-                previewContainer.innerHTML = `
-                  <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5rem; gap: 0.5rem; text-align: center;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                    <span style="color: var(--text-main); font-weight: 600; font-size: 0.9rem;">Password Protected Document</span>
-                    <span style="color: var(--text-muted); font-size: 0.75rem;">Enter password in the sidebar to preview document</span>
-                  </div>
-                `;
-              }
-              return;
-            }
-          } else {
+        if (pwd) {
+          try {
+            pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0), password: pwd }).promise;
+          } catch (wErr) {
             filePagesLabel.textContent = "Pages: Encrypted PDF";
             if (previewContainer) {
               previewContainer.innerHTML = `
                 <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5rem; gap: 0.5rem; text-align: center;">
                   <svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
                   <span style="color: var(--text-main); font-weight: 600; font-size: 0.9rem;">Password Protected Document</span>
-                  <span style="color: var(--text-muted); font-size: 0.75rem;">Enter password in the sidebar to preview document</span>
+                  <span style="color: var(--text-muted); font-size: 0.75rem;">Enter password in the sidebar to decrypt document</span>
                 </div>
               `;
             }
             return;
           }
         } else {
-          throw noPwdErr;
+          filePagesLabel.textContent = "Pages: Encrypted PDF";
+          if (previewContainer) {
+            previewContainer.innerHTML = `
+              <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5rem; gap: 0.5rem; text-align: center;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                <span style="color: var(--text-main); font-weight: 600; font-size: 0.9rem;">Password Protected Document</span>
+                <span style="color: var(--text-muted); font-size: 0.75rem;">Enter password in the sidebar to decrypt document</span>
+              </div>
+            `;
+          }
+          return;
         }
       }
 
@@ -1072,27 +1068,9 @@ function initSecurityTab() {
     } catch (e) {
       console.warn("Security preview fallback:", e);
       filePagesLabel.textContent = "Pages: Ready";
-      if (previewContainer) {
-        previewContainer.innerHTML = `
-          <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5rem; gap: 0.5rem; text-align: center;">
-            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            <span style="color: var(--text-main); font-weight: 600; font-size: 0.85rem;">PDF Document Loaded</span>
-          </div>
-        `;
-      }
     }
   }
 
-  let pwdDebounceTimer = null;
-  if (passwordInput) {
-    passwordInput.addEventListener('input', () => {
-      clearTimeout(pwdDebounceTimer);
-      pwdDebounceTimer = setTimeout(() => {
-        if (securityFile) loadFile(securityFile);
-      }, 350);
-    });
-  }
-  
   btnClear.addEventListener('click', resetSecurityTab);
   
   function resetSecurityTab() {
@@ -1102,12 +1080,24 @@ function initSecurityTab() {
     previewContainer.style.display = 'none';
     btnRun.disabled = true;
     successCard.style.display = 'none';
+    if (passwordInput) { passwordInput.value = ''; passwordInput.style.borderColor = ''; }
   }
   
   btnRun.addEventListener('click', async () => {
+    const password = passwordInput ? passwordInput.value.trim() : '';
+    if (!password && modeSelect.value === 'encrypt') {
+      if (passwordInput) {
+        passwordInput.style.borderColor = 'var(--error)';
+        passwordInput.focus();
+      }
+      alert("Please enter a password to encrypt your PDF document.");
+      return;
+    }
+
     btnRun.disabled = true;
     btnClear.disabled = true;
     progressContainer.style.display = 'block';
+    successCard.style.display = 'none';
     successCard.style.display = 'none';
     
     try {
