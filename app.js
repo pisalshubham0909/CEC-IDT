@@ -1,5 +1,10 @@
 // Main Application Router & Controller
 
+// Set PDF.js Worker globally ONCE for zero-overhead background parsing
+if (typeof pdfjsLib !== 'undefined') {
+  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+}
+
 document.addEventListener('DOMContentLoaded', () => {
   initRouting();
   initMergerTab();
@@ -12,10 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
   initSecurityTab();
   initConvertersTab();
   initGlobalCardEffects();
-// Set PDF.js Worker globally ONCE for zero-overhead background parsing
-if (typeof pdfjsLib !== 'undefined') {
-  pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-}
+});
 
 /**
  * Premium mouse hover glow effects on dashboard cards (throttled with rAF for 60fps smoothness)
