@@ -656,13 +656,14 @@ async function decryptPDFFile(pdfBytes, password) {
 async function checkIsPDFEncrypted(pdfBytes) {
   try {
     const bytes = new Uint8Array(pdfBytes);
-    await PDFLib.PDFDocument.load(bytes);
-    return false;
-  } catch (err) {
-    const msg = err.message.toLowerCase();
-    if (msg.includes('encrypt') || msg.includes('password') || msg.includes('decrypt') || msg.includes('unsupported')) {
+    const textDecoder = new TextDecoder('latin1');
+    const headerStr = textDecoder.decode(bytes.subarray(0, Math.min(8192, bytes.length)));
+    const trailerStr = bytes.length > 8192 ? textDecoder.decode(bytes.subarray(bytes.length - 8192)) : '';
+    if (headerStr.includes('/Encrypt') || trailerStr.includes('/Encrypt')) {
       return true;
     }
+    return false;
+  } catch (err) {
     return false;
   }
 }
