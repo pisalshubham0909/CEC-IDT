@@ -621,12 +621,20 @@ async function encryptPDFFile(pdfBytes, password) {
     if (response.ok) {
       return new Uint8Array(await response.arrayBuffer());
     }
+    const errText = await response.text().catch(() => '');
+    throw new Error(errText || `Server returned HTTP ${response.status}`);
   } catch (err) {
-    console.warn("Backend encryption API unavailable, using client fallback:", err);
+    if (err.message && !err.message.includes('fetch') && !err.message.includes('Failed to fetch')) {
+      throw err;
+    }
+    console.warn("Backend encryption API unavailable, trying client fallback:", err);
+    try {
+      const encryptModule = await import('https://cdn.jsdelivr.net/npm/@pdfsmaller/pdf-encrypt/+esm');
+      return await encryptModule.encryptPDF(new Uint8Array(pdfBytes), password);
+    } catch (fErr) {
+      throw new Error(`Encryption error: ${err.message}`);
+    }
   }
-
-  const encryptModule = await import('https://cdn.jsdelivr.net/npm/@pdfsmaller/pdf-encrypt/+esm');
-  return await encryptModule.encryptPDF(new Uint8Array(pdfBytes), password);
 }
 
 /**
@@ -642,12 +650,20 @@ async function decryptPDFFile(pdfBytes, password) {
     if (response.ok) {
       return new Uint8Array(await response.arrayBuffer());
     }
+    const errText = await response.text().catch(() => '');
+    throw new Error(errText || `Server returned HTTP ${response.status}`);
   } catch (err) {
-    console.warn("Backend decryption API unavailable, using client fallback:", err);
+    if (err.message && !err.message.includes('fetch') && !err.message.includes('Failed to fetch')) {
+      throw err;
+    }
+    console.warn("Backend decryption API unavailable, trying client fallback:", err);
+    try {
+      const decryptModule = await import('https://cdn.jsdelivr.net/npm/@pdfsmaller/pdf-decrypt/+esm');
+      return await decryptModule.decryptPDF(new Uint8Array(pdfBytes), password);
+    } catch (fErr) {
+      throw new Error(`Decryption error: ${err.message}`);
+    }
   }
-
-  const decryptModule = await import('https://cdn.jsdelivr.net/npm/@pdfsmaller/pdf-decrypt/+esm');
-  return await decryptModule.decryptPDF(new Uint8Array(pdfBytes), password);
 }
 
 /**
