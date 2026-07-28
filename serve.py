@@ -133,7 +133,8 @@ def run_server():
                         try:
                             import fitz
                             doc = fitz.open(stream=body, filetype="pdf")
-                            doc.save(out_buffer, encryption=fitz.PDF_ENCRYPT_AES_256, user_pw=password, owner_pw=password)
+                            perm = fitz.PDF_PERM_ACCESSIBILITY | fitz.PDF_PERM_PRINT | fitz.PDF_PERM_COPY | fitz.PDF_PERM_ANNOTATE | fitz.PDF_PERM_MODIFY
+                            doc.save(out_buffer, encryption=fitz.PDF_ENCRYPT_AES_256, user_pw=password, owner_pw=password, permissions=perm)
                             doc.close()
                             res_bytes = out_buffer.getvalue()
                         except Exception as e_fitz:

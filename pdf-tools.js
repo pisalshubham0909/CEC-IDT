@@ -12,6 +12,16 @@ const PageSizeMap = {
  * Utility to convert file to ArrayBuffer
  */
 function fileToArrayBuffer(file) {
+  if (!file) return Promise.reject(new Error("No file provided"));
+  if (file instanceof ArrayBuffer) {
+    return Promise.resolve(file.byteLength > 0 ? file.slice(0) : new ArrayBuffer(0));
+  }
+  if (file && file.buffer instanceof ArrayBuffer) {
+    return Promise.resolve(file.buffer.byteLength > 0 ? file.buffer.slice(0) : new ArrayBuffer(0));
+  }
+  if (typeof file.arrayBuffer === 'function') {
+    return file.arrayBuffer().then(buf => buf.slice(0));
+  }
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result);
