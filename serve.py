@@ -130,24 +130,53 @@ def run_server():
 
                 elif self.path == "/api/encrypt":
                     try:
+                        import json
                         import urllib.parse
-                        password = urllib.parse.unquote(self.headers.get('X-Password', ''))
+                        
+                        user_pw = urllib.parse.unquote(self.headers.get('X-Password', ''))
+                        owner_pw = urllib.parse.unquote(self.headers.get('X-Owner-Password', ''))
+                        mode = self.headers.get('X-Security-Mode', 'encrypt_user')
+                        enc_algo = self.headers.get('X-Encryption-Level', 'AES-256')
+                        perms_hdr = self.headers.get('X-Permissions', '')
+                        
+                        if not owner_pw:
+                            owner_pw = user_pw + "_master_owner" if user_pw else "master_owner_key"
+                            
+                        if mode == 'encrypt_owner':
+                            user_pw = ""
+                            
                         out_buffer = io.BytesIO()
                         try:
                             import fitz
                             doc = fitz.open(stream=body, filetype="pdf")
-                            owner_pw = password + "_master_owner"
-                            perm = (
-                                fitz.PDF_PERM_ACCESSIBILITY |
-                                fitz.PDF_PERM_ANNOTATE |
-                                fitz.PDF_PERM_ASSEMBLE |
-                                fitz.PDF_PERM_COPY |
-                                fitz.PDF_PERM_FORM |
-                                fitz.PDF_PERM_MODIFY |
-                                fitz.PDF_PERM_PRINT |
-                                fitz.PDF_PERM_PRINT_HQ
-                            )
-                            doc.save(out_buffer, encryption=fitz.PDF_ENCRYPT_AES_256, user_pw=password, owner_pw=owner_pw, permissions=perm, clean=False, garbage=0, deflate=False)
+                            
+                            enc_method = fitz.PDF_ENCRYPT_AES_256
+                            if enc_algo == 'AES-128':
+                                enc_method = fitz.PDF_ENCRYPT_AES_128
+                            elif enc_algo == 'RC4-128':
+                                enc_method = fitz.PDF_ENCRYPT_RC4_128
+                                
+                            perm = 0
+                            if perms_hdr:
+                                try:
+                                    p_list = json.loads(urllib.parse.unquote(perms_hdr)) if '%' in perms_hdr else json.loads(perms_hdr)
+                                    if 'print' in p_list: perm |= (fitz.PDF_PERM_PRINT | fitz.PDF_PERM_PRINT_HQ)
+                                    if 'copy' in p_list: perm |= fitz.PDF_PERM_COPY
+                                    if 'modify' in p_list: perm |= (fitz.PDF_PERM_MODIFY | fitz.PDF_PERM_ASSEMBLE)
+                                    if 'annotate' in p_list: perm |= fitz.PDF_PERM_ANNOTATE
+                                    if 'forms' in p_list: perm |= fitz.PDF_PERM_FORM
+                                    if 'accessibility' in p_list: perm |= fitz.PDF_PERM_ACCESSIBILITY
+                                except Exception as p_err:
+                                    print(f"Permissions parse warning: {p_err}")
+                                    perm = (fitz.PDF_PERM_ACCESSIBILITY | fitz.PDF_PERM_ANNOTATE | fitz.PDF_PERM_ASSEMBLE |
+                                            fitz.PDF_PERM_COPY | fitz.PDF_PERM_FORM | fitz.PDF_PERM_MODIFY |
+                                            fitz.PDF_PERM_PRINT | fitz.PDF_PERM_PRINT_HQ)
+                            else:
+                                perm = (fitz.PDF_PERM_ACCESSIBILITY | fitz.PDF_PERM_ANNOTATE | fitz.PDF_PERM_ASSEMBLE |
+                                        fitz.PDF_PERM_COPY | fitz.PDF_PERM_FORM | fitz.PDF_PERM_MODIFY |
+                                        fitz.PDF_PERM_PRINT | fitz.PDF_PERM_PRINT_HQ)
+                                
+                            doc.save(out_buffer, encryption=enc_method, user_pw=user_pw, owner_pw=owner_pw, permissions=perm, clean=True, deflate=True, garbage=3)
                             doc.close()
                             res_bytes = out_buffer.getvalue()
                         except Exception as e_fitz:
@@ -155,7 +184,7 @@ def run_server():
                             reader = PdfReader(io.BytesIO(body), strict=False)
                             writer = PdfWriter()
                             writer.append(reader)
-                            writer.encrypt(user_password=password, owner_password=password + "_master_owner")
+                            writer.encrypt(user_password=user_pw, owner_password=owner_pw)
                             writer.write(out_buffer)
                             res_bytes = out_buffer.getvalue()
                         
@@ -175,21 +204,30 @@ def run_server():
                             if doc.is_encrypted:
                                 auth = doc.authenticate(password)
                                 if not auth and password:
-                                    doc.authenticate(password.encode('utf-8'))
-                            doc.save(out_buffer, encryption=fitz.PDF_ENCRYPT_NONE)
+                                    auth = doc.authenticate(password.encode('utf-8'))
+                                if auth <= 0:
+                                    doc.close()
+                                    raise ValueError("Incorrect password for PDF decryption.")
+                            doc.save(out_buffer, encryption=fitz.PDF_ENCRYPT_NONE, clean=True, deflate=True, garbage=3)
                             doc.close()
                             res_bytes = out_buffer.getvalue()
+                        except ValueError as val_err:
+                            raise val_err
                         except Exception as d_fitz:
                             print(f"PyMuPDF decrypt fallback note: {d_fitz}")
                             reader = PdfReader(io.BytesIO(body), strict=False)
                             if reader.is_encrypted:
-                                reader.decrypt(password)
+                                dec_res = reader.decrypt(password)
+                                if dec_res == 0:
+                                    raise ValueError("Incorrect password for PDF decryption.")
                             writer = PdfWriter()
                             writer.append(reader)
                             writer.write(out_buffer)
                             res_bytes = out_buffer.getvalue()
                             
                         self.send_api_response(res_bytes, "application/pdf")
+                    except ValueError as v_err:
+                        self.send_error(400, str(v_err))
                     except Exception as dec_err:
                         print(f"Backend PDF decryption error: {dec_err}")
                         self.send_error(500, f"PDF decryption failed: {dec_err}")

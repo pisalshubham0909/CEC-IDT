@@ -646,11 +646,33 @@ async function saveEditedPDF(originalBytes, annotations, applyToAllPages = false
 /**
  * Encrypt a PDF document client-side or using Python Backend API across ALL pages
  */
-async function encryptPDFFile(pdfBytes, password) {
+async function encryptPDFFile(pdfBytes, passwordOptions) {
+  let userPassword = '';
+  let ownerPassword = '';
+  let mode = 'encrypt_user';
+  let permissions = ['print', 'copy', 'forms', 'accessibility'];
+  let algo = 'AES-256';
+
+  if (typeof passwordOptions === 'string') {
+    userPassword = passwordOptions;
+  } else if (passwordOptions && typeof passwordOptions === 'object') {
+    userPassword = passwordOptions.userPassword || '';
+    ownerPassword = passwordOptions.ownerPassword || '';
+    mode = passwordOptions.mode || 'encrypt_user';
+    permissions = passwordOptions.permissions || permissions;
+    algo = passwordOptions.algo || 'AES-256';
+  }
+
   try {
     const response = await fetch('/api/encrypt', {
       method: 'POST',
-      headers: { 'X-Password': encodeURIComponent(password) },
+      headers: {
+        'X-Password': encodeURIComponent(userPassword),
+        'X-Owner-Password': encodeURIComponent(ownerPassword),
+        'X-Security-Mode': mode,
+        'X-Permissions': encodeURIComponent(JSON.stringify(permissions)),
+        'X-Encryption-Level': algo
+      },
       body: new Uint8Array(pdfBytes.slice(0))
     });
     const contentType = response.headers.get('content-type') || '';
@@ -659,18 +681,13 @@ async function encryptPDFFile(pdfBytes, password) {
       if (resBytes.byteLength > 0) {
         return resBytes;
       }
+    } else {
+      const errText = await response.text();
+      throw new Error(errText || 'PDF encryption request failed.');
     }
   } catch (err) {
-    console.warn("Backend encryption API fetch error:", err);
-  }
-
-  // Client-side fallback using pdf-encrypt module
-  try {
-    const encryptModule = await import('https://cdn.jsdelivr.net/npm/@pdfsmaller/pdf-encrypt/+esm');
-    return await encryptModule.encryptPDF(new Uint8Array(pdfBytes.slice(0)), password);
-  } catch (fErr) {
-    console.warn("Client pdf-encrypt module error:", fErr);
-    throw new Error(`Encryption failed. Server connection unavailable and password could not be applied.`);
+    console.warn("Backend encryption API error:", err);
+    throw err;
   }
 }
 
@@ -681,32 +698,31 @@ async function decryptPDFFile(pdfBytes, password) {
   try {
     const response = await fetch('/api/decrypt', {
       method: 'POST',
-      headers: { 'X-Password': encodeURIComponent(password) },
+      headers: { 'X-Password': encodeURIComponent(password || '') },
       body: new Uint8Array(pdfBytes.slice(0))
     });
     const contentType = response.headers.get('content-type') || '';
     if (response.ok && contentType.includes('pdf')) {
       return new Uint8Array(await response.arrayBuffer());
+    } else {
+      let errMsg = "Decryption failed. Please verify the entered password.";
+      try {
+        const textRes = await response.text();
+        if (textRes) {
+          if (textRes.includes("Incorrect password")) {
+            errMsg = "Incorrect password provided. Please verify the password and try again.";
+          } else {
+            errMsg = textRes;
+          }
+        }
+      } catch (e) {
+        console.warn("Error reading error response text:", e);
+      }
+      throw new Error(errMsg);
     }
   } catch (err) {
-    console.warn("Backend decryption API fetch error:", err);
-  }
-
-  // Fallback to client-side PDFLib decryption (handles 405 Not Allowed static servers)
-  try {
-    if (typeof PDFLib !== 'undefined') {
-      const doc = await PDFLib.PDFDocument.load(pdfBytes.slice(0), { password: password, ignoreEncryption: true });
-      return await doc.save();
-    }
-  } catch (cErr) {
-    console.warn("Client PDFLib decryption fallback warning:", cErr);
-  }
-
-  try {
-    const decryptModule = await import('https://cdn.jsdelivr.net/npm/@pdfsmaller/pdf-decrypt/+esm');
-    return await decryptModule.decryptPDF(new Uint8Array(pdfBytes), password);
-  } catch (fErr) {
-    throw new Error(`Decryption failed. Please verify the entered password.`);
+    console.warn("Backend decryption API error:", err);
+    throw err;
   }
 }
 

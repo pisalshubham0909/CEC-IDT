@@ -922,9 +922,22 @@ function initSecurityTab() {
   const previewContainer = document.getElementById('security-canvas-preview');
   
   const modeSelect = document.getElementById('security-mode');
+  const groupUserPw = document.getElementById('group-user-password');
+  const groupOwnerPw = document.getElementById('group-owner-password');
+  const groupPermissions = document.getElementById('group-permissions');
+  const groupAlgo = document.getElementById('group-encryption-algo');
+  
   const passwordInput = document.getElementById('security-password');
   const passwordLabel = document.getElementById('security-password-label');
+  const ownerPasswordInput = document.getElementById('security-owner-password');
   const outputNameInput = document.getElementById('security-output-name');
+  const algoSelect = document.getElementById('security-algo');
+  
+  const btnToggleUserPw = document.getElementById('btn-toggle-user-pw');
+  const btnToggleOwnerPw = document.getElementById('btn-toggle-owner-pw');
+  const pwStrengthBox = document.getElementById('user-password-strength-box');
+  const pwStrengthBar = document.getElementById('user-password-strength-bar');
+  const pwStrengthText = document.getElementById('user-password-strength-text');
   
   const progressContainer = document.getElementById('security-progress');
   const progressBar = document.getElementById('security-progress-bar');
@@ -934,7 +947,67 @@ function initSecurityTab() {
   const successCard = document.getElementById('security-success');
   const successTitle = document.getElementById('security-success-title');
   const btnDownload = document.getElementById('btn-download-security');
-  
+
+  if (btnToggleUserPw && passwordInput) {
+    btnToggleUserPw.addEventListener('click', () => {
+      const isPw = passwordInput.type === 'password';
+      passwordInput.type = isPw ? 'text' : 'password';
+      btnToggleUserPw.innerHTML = isPw 
+        ? `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`
+        : `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+    });
+  }
+
+  if (btnToggleOwnerPw && ownerPasswordInput) {
+    btnToggleOwnerPw.addEventListener('click', () => {
+      const isPw = ownerPasswordInput.type === 'password';
+      ownerPasswordInput.type = isPw ? 'text' : 'password';
+      btnToggleOwnerPw.innerHTML = isPw 
+        ? `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`
+        : `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+    });
+  }
+
+  if (passwordInput && pwStrengthBox) {
+    passwordInput.addEventListener('input', () => {
+      const val = passwordInput.value;
+      if (!val || modeSelect.value === 'decrypt') {
+        pwStrengthBox.style.display = 'none';
+        return;
+      }
+      pwStrengthBox.style.display = 'block';
+      
+      let score = 0;
+      if (val.length >= 6) score++;
+      if (val.length >= 10) score++;
+      if (/[0-9]/.test(val)) score++;
+      if (/[a-z]/.test(val) && /[A-Z]/.test(val)) score++;
+      if (/[^A-Za-z0-9]/.test(val)) score++;
+
+      if (score <= 2) {
+        pwStrengthBar.style.width = '25%';
+        pwStrengthBar.style.backgroundColor = 'var(--error)';
+        pwStrengthText.textContent = 'Password Strength: Weak';
+        pwStrengthText.style.color = 'var(--error)';
+      } else if (score === 3) {
+        pwStrengthBar.style.width = '55%';
+        pwStrengthBar.style.backgroundColor = 'var(--warning)';
+        pwStrengthText.textContent = 'Password Strength: Fair';
+        pwStrengthText.style.color = 'var(--warning)';
+      } else if (score === 4) {
+        pwStrengthBar.style.width = '80%';
+        pwStrengthBar.style.backgroundColor = 'var(--secondary)';
+        pwStrengthText.textContent = 'Password Strength: Strong';
+        pwStrengthText.style.color = 'var(--secondary)';
+      } else {
+        pwStrengthBar.style.width = '100%';
+        pwStrengthBar.style.backgroundColor = 'var(--success)';
+        pwStrengthText.textContent = 'Password Strength: Very Strong';
+        pwStrengthText.style.color = 'var(--success)';
+      }
+    });
+  }
+
   dropzone.addEventListener('click', () => fileInput.click());
   const btnBrowseSecurity = document.getElementById('btn-browse-security');
   if (btnBrowseSecurity) {
@@ -961,18 +1034,48 @@ function initSecurityTab() {
     }
   });
   
-  modeSelect.addEventListener('change', () => {
-    if (modeSelect.value === 'encrypt') {
-      passwordLabel.textContent = "Opening Password (User Password)";
-      passwordInput.placeholder = "Enter password required to open document...";
-      outputNameInput.value = securityFile ? securityFile.name.replace('.pdf', '_Protected.pdf') : 'Protected_Document.pdf';
-    } else {
-      passwordLabel.textContent = "Current Opening Password (to Decrypt)";
-      passwordInput.placeholder = "Enter current document password...";
-      outputNameInput.value = securityFile ? securityFile.name.replace('.pdf', '_Unlocked.pdf') : 'Unlocked_Document.pdf';
+  modeSelect.addEventListener('change', updateSecurityModeUI);
+
+  function updateSecurityModeUI() {
+    const m = modeSelect.value;
+    if (m === 'encrypt_user') {
+      if (groupUserPw) groupUserPw.style.display = 'block';
+      if (groupOwnerPw) groupOwnerPw.style.display = 'none';
+      if (groupPermissions) groupPermissions.style.display = 'block';
+      if (groupAlgo) groupAlgo.style.display = 'block';
+      if (passwordLabel) passwordLabel.textContent = "Document Open Password (User Password)";
+      if (passwordInput) passwordInput.placeholder = "Enter password required to open document...";
+      if (outputNameInput) outputNameInput.value = securityFile ? securityFile.name.replace(/\.pdf$/i, '_Protected.pdf') : 'Protected_Document.pdf';
+      if (btnRun) btnRun.textContent = "Apply Encryption";
+    } else if (m === 'encrypt_owner') {
+      if (groupUserPw) groupUserPw.style.display = 'none';
+      if (groupOwnerPw) groupOwnerPw.style.display = 'block';
+      if (groupPermissions) groupPermissions.style.display = 'block';
+      if (groupAlgo) groupAlgo.style.display = 'block';
+      if (outputNameInput) outputNameInput.value = securityFile ? securityFile.name.replace(/\.pdf$/i, '_Restricted.pdf') : 'Restricted_Document.pdf';
+      if (btnRun) btnRun.textContent = "Apply Permissions Lock";
+    } else if (m === 'encrypt_both') {
+      if (groupUserPw) groupUserPw.style.display = 'block';
+      if (groupOwnerPw) groupOwnerPw.style.display = 'block';
+      if (groupPermissions) groupPermissions.style.display = 'block';
+      if (groupAlgo) groupAlgo.style.display = 'block';
+      if (passwordLabel) passwordLabel.textContent = "Document Open Password (User Password)";
+      if (passwordInput) passwordInput.placeholder = "Enter password required to open document...";
+      if (outputNameInput) outputNameInput.value = securityFile ? securityFile.name.replace(/\.pdf$/i, '_Secured.pdf') : 'Secured_Document.pdf';
+      if (btnRun) btnRun.textContent = "Apply Full Security";
+    } else { // 'decrypt'
+      if (groupUserPw) groupUserPw.style.display = 'block';
+      if (groupOwnerPw) groupOwnerPw.style.display = 'none';
+      if (groupPermissions) groupPermissions.style.display = 'none';
+      if (groupAlgo) groupAlgo.style.display = 'none';
+      if (pwStrengthBox) pwStrengthBox.style.display = 'none';
+      if (passwordLabel) passwordLabel.textContent = "Current Opening Password (to Decrypt)";
+      if (passwordInput) passwordInput.placeholder = "Enter current password (leave blank if unprotected)...";
+      if (outputNameInput) outputNameInput.value = securityFile ? securityFile.name.replace(/\.pdf$/i, '_Unlocked.pdf') : 'Unlocked_Document.pdf';
+      if (btnRun) btnRun.textContent = "Decrypt & Unlock PDF";
     }
-  });
-  
+  }
+
   async function loadFile(file) {
     securityFile = file;
     dropzone.style.display = 'none';
@@ -980,16 +1083,17 @@ function initSecurityTab() {
     btnRun.disabled = false;
     successCard.style.display = 'none';
     if (passwordInput) passwordInput.style.borderColor = '';
+    if (ownerPasswordInput) ownerPasswordInput.style.borderColor = '';
     
     fileNameLabel.textContent = file.name;
     fileSizeLabel.textContent = formatBytes(file.size);
     filePagesLabel.textContent = "PDF Document";
     
-    outputNameInput.value = modeSelect.value === 'encrypt' ? file.name.replace('.pdf', '_Protected.pdf') : file.name.replace('.pdf', '_Unlocked.pdf');
-    
+    updateSecurityModeUI();
+
     if (previewContainer) {
       previewContainer.style.display = 'flex';
-      previewContainer.innerHTML = '<span style="color: var(--text-muted); font-size: 0.85rem;">Document Loaded</span>';
+      previewContainer.innerHTML = '<span style="color: var(--text-muted); font-size: 0.85rem;">Rendering document preview...</span>';
     }
     
     try {
@@ -1007,69 +1111,93 @@ function initSecurityTab() {
           try {
             pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0), password: pwd }).promise;
           } catch (wErr) {
-            filePagesLabel.textContent = "Pages: Encrypted PDF";
-            if (previewContainer) {
-              previewContainer.innerHTML = `
-                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5rem; gap: 0.5rem; text-align: center;">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                  <span style="color: var(--text-main); font-weight: 600; font-size: 0.9rem;">Password Protected Document</span>
-                  <span style="color: var(--text-muted); font-size: 0.75rem;">Enter password in the sidebar to decrypt document</span>
-                </div>
-              `;
-            }
+            renderEncryptedPrompt(arrayBuffer);
             return;
           }
         } else {
-          filePagesLabel.textContent = "Pages: Encrypted PDF";
-          if (previewContainer) {
-            previewContainer.innerHTML = `
-              <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5rem; gap: 0.5rem; text-align: center;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-                <span style="color: var(--text-main); font-weight: 600; font-size: 0.9rem;">Password Protected Document</span>
-                <span style="color: var(--text-muted); font-size: 0.75rem;">Enter password in the sidebar to decrypt document</span>
-              </div>
-            `;
-          }
+          renderEncryptedPrompt(arrayBuffer);
           return;
         }
       }
 
       filePagesLabel.textContent = `Pages: ${pdf.numPages}`;
-      
-      if (previewContainer) {
-        const page = await pdf.getPage(1);
-        const origViewport = page.getViewport({ scale: 1.0 });
-        const targetWidth = Math.min(280, Math.max(200, (previewContainer.clientWidth || 300) - 30));
-        const scaleFactor = targetWidth / origViewport.width;
-        const viewport = page.getViewport({ scale: scaleFactor });
-
-        const canvas = document.createElement('canvas');
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        canvas.style.backgroundColor = '#ffffff';
-        canvas.style.borderRadius = '6px';
-        canvas.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.4)';
-        canvas.style.display = 'block';
-
-        const context = canvas.getContext('2d');
-        context.fillStyle = '#ffffff';
-        context.fillRect(0, 0, canvas.width, canvas.height);
-        
-        previewContainer.innerHTML = '';
-        const wrap = document.createElement('div');
-        wrap.style.display = 'flex';
-        wrap.style.justifyContent = 'center';
-        wrap.style.alignItems = 'center';
-        wrap.style.padding = '0.75rem';
-        wrap.style.width = '100%';
-        wrap.appendChild(canvas);
-        previewContainer.appendChild(wrap);
-        
-        await page.render({ canvasContext: context, viewport: viewport }).promise;
-      }
+      renderPagePreview(pdf);
     } catch (e) {
       console.warn("Security preview fallback:", e);
       filePagesLabel.textContent = "Pages: Ready";
+    }
+  }
+
+  function renderEncryptedPrompt(arrayBuffer) {
+    filePagesLabel.textContent = "Pages: Encrypted PDF";
+    if (previewContainer) {
+      previewContainer.innerHTML = `
+        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5rem; gap: 0.75rem; text-align: center; width: 100%; max-width: 380px;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          <span style="color: var(--text-main); font-weight: 700; font-size: 1.05rem;">Password Protected Document</span>
+          <span style="color: var(--text-muted); font-size: 0.8rem;">Enter document password below to unlock live canvas preview.</span>
+          <div style="display: flex; gap: 0.5rem; width: 100%; margin-top: 0.25rem;">
+            <input type="password" id="inline-preview-pw" class="settings-input" placeholder="Password..." style="flex: 1;">
+            <button class="action-btn" id="btn-unlock-preview" style="width: auto; padding: 0 1rem; background: var(--warning);">Unlock</button>
+          </div>
+        </div>
+      `;
+
+      const inlineInput = document.getElementById('inline-preview-pw');
+      const inlineBtn = document.getElementById('btn-unlock-preview');
+      if (inlineBtn && inlineInput) {
+        const doUnlock = async () => {
+          const p = inlineInput.value;
+          if (!p) return;
+          try {
+            const pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0), password: p }).promise;
+            if (passwordInput) passwordInput.value = p;
+            filePagesLabel.textContent = `Pages: ${pdf.numPages}`;
+            renderPagePreview(pdf);
+          } catch (err) {
+            alert("Incorrect password. Could not open document.");
+          }
+        };
+        inlineBtn.addEventListener('click', doUnlock);
+        inlineInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') doUnlock(); });
+      }
+    }
+  }
+
+  async function renderPagePreview(pdf) {
+    if (!previewContainer) return;
+    try {
+      const page = await pdf.getPage(1);
+      const origViewport = page.getViewport({ scale: 1.0 });
+      const targetWidth = Math.min(320, Math.max(200, (previewContainer.clientWidth || 340) - 40));
+      const scaleFactor = targetWidth / origViewport.width;
+      const viewport = page.getViewport({ scale: scaleFactor });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      canvas.style.backgroundColor = '#ffffff';
+      canvas.style.borderRadius = '8px';
+      canvas.style.boxShadow = '0 6px 24px rgba(0, 0, 0, 0.5)';
+      canvas.style.display = 'block';
+
+      const context = canvas.getContext('2d');
+      context.fillStyle = '#ffffff';
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      
+      previewContainer.innerHTML = '';
+      const wrap = document.createElement('div');
+      wrap.style.display = 'flex';
+      wrap.style.justifyContent = 'center';
+      wrap.style.alignItems = 'center';
+      wrap.style.padding = '0.75rem';
+      wrap.style.width = '100%';
+      wrap.appendChild(canvas);
+      previewContainer.appendChild(wrap);
+      
+      await page.render({ canvasContext: context, viewport: viewport }).promise;
+    } catch (err) {
+      console.warn("Render preview error:", err);
     }
   }
 
@@ -1092,6 +1220,8 @@ function initSecurityTab() {
     btnRun.disabled = true;
     successCard.style.display = 'none';
     if (passwordInput) { passwordInput.value = ''; passwordInput.style.borderColor = ''; }
+    if (ownerPasswordInput) { ownerPasswordInput.value = ''; ownerPasswordInput.style.borderColor = ''; }
+    if (pwStrengthBox) pwStrengthBox.style.display = 'none';
   }
   
   btnRun.addEventListener('click', async () => {
@@ -1100,15 +1230,37 @@ function initSecurityTab() {
       return;
     }
 
-    const password = passwordInput ? passwordInput.value : '';
-    if (!password && modeSelect.value === 'encrypt') {
+    const mode = modeSelect.value;
+    const userPw = passwordInput ? passwordInput.value : '';
+    const ownerPw = ownerPasswordInput ? ownerPasswordInput.value : '';
+
+    if ((mode === 'encrypt_user' || mode === 'encrypt_both') && !userPw) {
       if (passwordInput) {
         passwordInput.style.borderColor = 'var(--error)';
         passwordInput.focus();
       }
-      alert("Please enter a password to encrypt your PDF document.");
+      alert("Please enter a User Password to protect document opening.");
       return;
     }
+
+    if ((mode === 'encrypt_owner' || mode === 'encrypt_both') && !ownerPw) {
+      if (ownerPasswordInput) {
+        ownerPasswordInput.style.borderColor = 'var(--error)';
+        ownerPasswordInput.focus();
+      }
+      alert("Please enter a Master/Owner Password to lock document permissions.");
+      return;
+    }
+
+    const selectedPerms = [];
+    if (document.getElementById('perm-print')?.checked) selectedPerms.push('print');
+    if (document.getElementById('perm-copy')?.checked) selectedPerms.push('copy');
+    if (document.getElementById('perm-modify')?.checked) selectedPerms.push('modify');
+    if (document.getElementById('perm-annotate')?.checked) selectedPerms.push('annotate');
+    if (document.getElementById('perm-forms')?.checked) selectedPerms.push('forms');
+    if (document.getElementById('perm-accessibility')?.checked) selectedPerms.push('accessibility');
+
+    const algo = algoSelect ? algoSelect.value : 'AES-256';
 
     btnRun.disabled = true;
     btnClear.disabled = true;
@@ -1118,19 +1270,25 @@ function initSecurityTab() {
     try {
       const fileBytes = await fileToArrayBuffer(securityFile);
       
-      if (modeSelect.value === 'encrypt') {
-        progressMsg.textContent = "Encrypting file stream with AES-256 password protection...";
+      if (mode.startsWith('encrypt')) {
+        progressMsg.textContent = `Applying ${algo} encryption & permissions...`;
         progressBar.style.width = "40%";
         progressPercent.textContent = "40%";
         
-        securedPdfBytes = await encryptPDFFile(fileBytes, password);
+        securedPdfBytes = await encryptPDFFile(fileBytes, {
+          userPassword: userPw,
+          ownerPassword: ownerPw,
+          mode: mode,
+          permissions: selectedPerms,
+          algo: algo
+        });
         
         progressBar.style.width = "100%";
         progressPercent.textContent = "100%";
-        progressMsg.textContent = "Encryption finished! Password Protection Active.";
-        successTitle.textContent = "PDF Password Security Applied!";
+        progressMsg.textContent = "Security settings applied successfully!";
+        successTitle.textContent = "PDF Security Applied!";
       } else {
-        progressMsg.textContent = "Removing security layers...";
+        progressMsg.textContent = "Removing password & security layers...";
         progressBar.style.width = "40%";
         progressPercent.textContent = "40%";
         
@@ -1139,13 +1297,13 @@ function initSecurityTab() {
           securedPdfBytes = new Uint8Array(fileBytes);
           progressMsg.textContent = "PDF is not encrypted. Unlocked file saved.";
         } else {
-          securedPdfBytes = await decryptPDFFile(fileBytes, password);
+          securedPdfBytes = await decryptPDFFile(fileBytes, userPw);
         }
         
         progressBar.style.width = "100%";
         progressPercent.textContent = "100%";
-        progressMsg.textContent = "Decryption finished!";
-        successTitle.textContent = "Decryption Succeeded!";
+        progressMsg.textContent = "Decryption & unlocking finished!";
+        successTitle.textContent = "PDF Decryption Succeeded!";
       }
       
       if (securedPdfUrl) URL.revokeObjectURL(securedPdfUrl);
@@ -1155,6 +1313,16 @@ function initSecurityTab() {
       progressContainer.style.display = 'none';
       successCard.style.display = 'flex';
       btnClear.disabled = false;
+
+      if (typeof pdfjsLib !== 'undefined' && previewContainer) {
+        try {
+          const pwdToTest = (mode.startsWith('encrypt') && userPw) ? userPw : '';
+          const pdf = await pdfjsLib.getDocument({ data: securedPdfBytes.slice(0), password: pwdToTest }).promise;
+          renderPagePreview(pdf);
+        } catch (prevErr) {
+          console.warn("Secured file preview render note:", prevErr);
+        }
+      }
     } catch (err) {
       alert(`Security operation failed: ${err.message}`);
       progressContainer.style.display = 'none';
@@ -1165,7 +1333,7 @@ function initSecurityTab() {
   
   btnDownload.addEventListener('click', () => {
     if (securedPdfUrl) {
-      let rawName = (outputNameInput && outputNameInput.value) ? outputNameInput.value.trim() : 'Protected_Document.pdf';
+      let rawName = (outputNameInput && outputNameInput.value) ? outputNameInput.value.trim() : 'Secured_Document.pdf';
       if (!rawName.toLowerCase().endsWith('.pdf')) {
         rawName += '.pdf';
       }
