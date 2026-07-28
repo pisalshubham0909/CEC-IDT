@@ -650,7 +650,7 @@ async function encryptPDFFile(pdfBytes, password) {
   try {
     const response = await fetch('/api/encrypt', {
       method: 'POST',
-      headers: { 'X-Password': password },
+      headers: { 'X-Password': encodeURIComponent(password) },
       body: new Uint8Array(pdfBytes.slice(0))
     });
     const contentType = response.headers.get('content-type') || '';
@@ -692,7 +692,7 @@ async function decryptPDFFile(pdfBytes, password) {
   try {
     const response = await fetch('/api/decrypt', {
       method: 'POST',
-      headers: { 'X-Password': password },
+      headers: { 'X-Password': encodeURIComponent(password) },
       body: new Uint8Array(pdfBytes.slice(0))
     });
     const contentType = response.headers.get('content-type') || '';

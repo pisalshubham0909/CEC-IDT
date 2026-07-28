@@ -130,7 +130,8 @@ def run_server():
 
                 elif self.path == "/api/encrypt":
                     try:
-                        password = self.headers.get('X-Password', '')
+                        import urllib.parse
+                        password = urllib.parse.unquote(self.headers.get('X-Password', ''))
                         out_buffer = io.BytesIO()
                         try:
                             import fitz
@@ -165,7 +166,8 @@ def run_server():
 
                 elif self.path == "/api/decrypt":
                     try:
-                        password = self.headers.get('X-Password', '')
+                        import urllib.parse
+                        password = urllib.parse.unquote(self.headers.get('X-Password', ''))
                         out_buffer = io.BytesIO()
                         try:
                             import fitz
