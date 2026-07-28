@@ -127,35 +127,55 @@ def run_server():
                         self.send_error(400, "Invalid Session ID")
 
                 elif self.path == "/api/encrypt":
-                    password = self.headers.get('X-Password', '')
-                    out_buffer = io.BytesIO()
-                    if HAS_PDFIUM:
-                        pdf = pdfium.PdfDocument(body)
-                        pdf.save(out_buffer, user_password=password, owner_password=password)
-                        pdf.close()
-                    else:
-                        reader = PdfReader(io.BytesIO(body), strict=False)
-                        writer = PdfWriter()
-                        writer.append(reader)
-                        writer.encrypt(user_password=password)
-                        writer.write(out_buffer)
-                    self.send_api_response(out_buffer.getvalue(), "application/pdf")
-                    
+                    try:
+                        password = self.headers.get('X-Password', '')
+                        out_buffer = io.BytesIO()
+                        try:
+                            import fitz
+                            doc = fitz.open('pdf', body)
+                            doc.save(out_buffer, encryption=fitz.PDF_ENCRYPT_AES_256, user_pw=password, owner_pw=password)
+                            doc.close()
+                            res_bytes = out_buffer.getvalue()
+                        except Exception as e_fitz:
+                            print(f"PyMuPDF encrypt fallback note: {e_fitz}")
+                            reader = PdfReader(io.BytesIO(body), strict=False)
+                            writer = PdfWriter()
+                            writer.append(reader)
+                            writer.encrypt(user_password=password, owner_password=password)
+                            writer.write(out_buffer)
+                            res_bytes = out_buffer.getvalue()
+                        
+                        self.send_api_response(res_bytes, "application/pdf")
+                    except Exception as enc_err:
+                        print(f"Backend PDF encryption error: {enc_err}")
+                        self.send_error(500, f"PDF encryption failed: {enc_err}")
+
                 elif self.path == "/api/decrypt":
-                    password = self.headers.get('X-Password', '')
-                    out_buffer = io.BytesIO()
-                    if HAS_PDFIUM:
-                        pdf = pdfium.PdfDocument(body, password=password)
-                        pdf.save(out_buffer)
-                        pdf.close()
-                    else:
-                        reader = PdfReader(io.BytesIO(body), strict=False)
-                        if reader.is_encrypted:
-                            reader.decrypt(password)
-                        writer = PdfWriter()
-                        writer.append(reader)
-                        writer.write(out_buffer)
-                    self.send_api_response(out_buffer.getvalue(), "application/pdf")
+                    try:
+                        password = self.headers.get('X-Password', '')
+                        out_buffer = io.BytesIO()
+                        try:
+                            import fitz
+                            doc = fitz.open('pdf', body)
+                            if doc.is_encrypted:
+                                doc.authenticate(password)
+                            doc.save(out_buffer, encryption=fitz.PDF_ENCRYPT_NONE)
+                            doc.close()
+                            res_bytes = out_buffer.getvalue()
+                        except Exception as d_fitz:
+                            print(f"PyMuPDF decrypt fallback note: {d_fitz}")
+                            reader = PdfReader(io.BytesIO(body), strict=False)
+                            if reader.is_encrypted:
+                                reader.decrypt(password)
+                            writer = PdfWriter()
+                            writer.append(reader)
+                            writer.write(out_buffer)
+                            res_bytes = out_buffer.getvalue()
+                            
+                        self.send_api_response(res_bytes, "application/pdf")
+                    except Exception as dec_err:
+                        print(f"Backend PDF decryption error: {dec_err}")
+                        self.send_error(500, f"PDF decryption failed: {dec_err}")
                     
                 elif self.path == "/api/merge":
                     import struct
@@ -289,6 +309,7 @@ def run_server():
                     
                 elif self.path == "/api/convert_pdf_to_word":
                     try:
+                        tbl_style = self.headers.get('X-Tbl-Style', 'blue_header')
                         with tempfile.NamedTemporaryFile(suffix='.pdf', delete=False) as f_pdf:
                             f_pdf.write(body)
                             pdf_path = f_pdf.name
@@ -315,10 +336,11 @@ def run_server():
 
                             def _set_tbl_borders(table):
                                 tblPr = table._tbl.tblPr
+                                border_col = "CCCCCC" if tbl_style != "minimal" else "E5E7EB"
                                 borders = parse_xml(
                                     f'<w:tblBorders {nsdecls("w")}>'
-                                    f'<w:top w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>'
-                                    f'<w:bottom w:val="single" w:sz="4" w:space="0" w:color="CCCCCC"/>'
+                                    f'<w:top w:val="single" w:sz="4" w:space="0" w:color="{border_col}"/>'
+                                    f'<w:bottom w:val="single" w:sz="4" w:space="0" w:color="{border_col}"/>'
                                     f'<w:left w:val="none"/>'
                                     f'<w:right w:val="none"/>'
                                     f'<w:insideH w:val="single" w:sz="4" w:space="0" w:color="E5E7EB"/>'
@@ -335,7 +357,6 @@ def run_server():
                                 rect = p.rect
                                 pw, ph = rect.width, rect.height
                                 
-                                # Set page dimensions to fit original PDF page layout
                                 section = doc_word.sections[0] if page_idx == 0 else doc_word.add_section()
                                 section.page_width = Inches(pw / 72.0)
                                 section.page_height = Inches(ph / 72.0)
@@ -363,6 +384,9 @@ def run_server():
                                         tbl.autofit = True
                                         _set_tbl_borders(tbl)
                                         
+                                        header_bg = "0284C7" if tbl_style == "blue_header" else ("1E293B" if tbl_style == "grid" else "F3F4F6")
+                                        header_text_white = tbl_style != "minimal"
+                                        
                                         col_w = Inches(max(0.5, p_w / float(max_cols)))
                                         for r_i, row_items in enumerate(rows_buf):
                                             is_header = (r_i == 0)
@@ -372,11 +396,12 @@ def run_server():
                                                     cell.width = col_w
                                                     cell.text = cell_text
                                                     if is_header:
-                                                        _set_cell_bg(cell, '0284C7')
+                                                        _set_cell_bg(cell, header_bg)
                                                         p_c = cell.paragraphs[0]
                                                         for run in p_c.runs:
                                                             run.font.bold = True
-                                                            run.font.color.rgb = RGBColor(255, 255, 255)
+                                                            if header_text_white:
+                                                                run.font.color.rgb = RGBColor(255, 255, 255)
                                         word_doc.add_paragraph()
                                         rows_buf.clear()
 
@@ -418,6 +443,9 @@ def run_server():
 
                 elif self.path == "/api/convert_pdf_to_pptx":
                     try:
+                        aspect_ratio = self.headers.get('X-Aspect-Ratio', '16:9')
+                        inc_images = self.headers.get('X-Include-Images', 'true') == 'true'
+                        
                         import fitz
                         from pptx import Presentation
                         from pptx.util import Inches, Pt
@@ -431,8 +459,15 @@ def run_server():
                             rect0 = doc_pdf[0].rect
                             w_p, h_p = rect0.width, rect0.height
                         
-                        prs.slide_width = Inches(10)
-                        prs.slide_height = Inches(10 * (h_p / w_p) if w_p > 0 else 7.5)
+                        if aspect_ratio == '4:3':
+                            prs.slide_width = Inches(10)
+                            prs.slide_height = Inches(7.5)
+                        elif aspect_ratio == 'auto':
+                            prs.slide_width = Inches(10)
+                            prs.slide_height = Inches(10 * (h_p / w_p) if w_p > 0 else 7.5)
+                        else:
+                            prs.slide_width = Inches(10)
+                            prs.slide_height = Inches(5.625) # 16:9 widescreen
 
                         for page_idx in range(len(doc_pdf)):
                             page = doc_pdf[page_idx]
@@ -476,22 +511,23 @@ def run_server():
                                                 b_c = color_int & 0xFF
                                                 run.font.color.rgb = RGBColor(r, g, b_c)
                                                 
-                            for img_info in page.get_images(full=True):
-                                xref = img_info[0]
-                                try:
-                                    base_img = doc_pdf.extract_image(xref)
-                                    if base_img:
-                                        img_bytes = base_img['image']
-                                        img_stream = io.BytesIO(img_bytes)
-                                        rects = page.get_image_rects(xref)
-                                        for r in rects:
-                                            left = Inches(r.x0 / 72.0)
-                                            top = Inches(r.y0 / 72.0)
-                                            width = Inches((r.x1 - r.x0) / 72.0)
-                                            height = Inches((r.y1 - r.y0) / 72.0)
-                                            slide.shapes.add_picture(img_stream, left, top, width, height)
-                                except Exception:
-                                    pass
+                            if inc_images:
+                                for img_info in page.get_images(full=True):
+                                    xref = img_info[0]
+                                    try:
+                                        base_img = doc_pdf.extract_image(xref)
+                                        if base_img:
+                                            img_bytes = base_img['image']
+                                            img_stream = io.BytesIO(img_bytes)
+                                            rects = page.get_image_rects(xref)
+                                            for r in rects:
+                                                left = Inches(r.x0 / 72.0)
+                                                top = Inches(r.y0 / 72.0)
+                                                width = Inches((r.x1 - r.x0) / 72.0)
+                                                height = Inches((r.y1 - r.y0) / 72.0)
+                                                slide.shapes.add_picture(img_stream, left, top, width, height)
+                                    except Exception:
+                                        pass
 
                         out_buf = io.BytesIO()
                         prs.save(out_buf)
@@ -502,16 +538,22 @@ def run_server():
 
                 elif self.path == "/api/convert_word_to_pdf":
                     try:
+                        orientation = self.headers.get('X-PDF-Orientation', 'portrait')
+                        theme_hex = self.headers.get('X-PDF-Theme', '#0284C7')
+                        
                         import docx, html
-                        from reportlab.lib.pagesizes import letter
+                        from reportlab.lib.pagesizes import letter, landscape
                         from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
                         from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
                         from reportlab.lib import colors
 
                         doc_in = docx.Document(io.BytesIO(body))
                         out_buf = io.BytesIO()
-                        pdf_doc = SimpleDocTemplate(out_buf, pagesize=letter, leftMargin=36, rightMargin=36, topMargin=36, bottomMargin=36)
-                        usable_w = 612 - 72 # 540 pt
+                        
+                        pagesize_cfg = landscape(letter) if orientation == 'landscape' else letter
+                        usable_w = (792 - 72) if orientation == 'landscape' else (612 - 72)
+                        
+                        pdf_doc = SimpleDocTemplate(out_buf, pagesize=pagesize_cfg, leftMargin=36, rightMargin=36, topMargin=36, bottomMargin=36)
                         styles = getSampleStyleSheet()
                         normal_style = styles['Normal']
                         story = []
@@ -563,7 +605,7 @@ def run_server():
                             if table_data:
                                 t = Table(table_data, colWidths=[col_w] * num_cols)
                                 t.setStyle(TableStyle([
-                                    ('BACKGROUND', (0,0), (-1,0), colors.HexColor('#0284c7')),
+                                    ('BACKGROUND', (0,0), (-1,0), colors.HexColor(theme_hex)),
                                     ('TEXTCOLOR', (0,0), (-1,0), colors.whitesmoke),
                                     ('GRID', (0,0), (-1,-1), 0.5, colors.grey),
                                     ('VALIGN', (0,0), (-1,-1), 'TOP'),

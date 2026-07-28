@@ -1263,11 +1263,26 @@ function initWatermarkTab() {
     }
   });
   
-  [wmText, wmFontSize, wmColor, wmRotation, wmOpacity, wmPosition, wmType].forEach(el => {
+  [wmText, wmFontSize, wmColor, wmRotation, wmOpacity, wmPosition, wmType, wmImgScale].forEach(el => {
     if (el) {
       el.addEventListener('input', updateWatermarkPreview);
       el.addEventListener('change', updateWatermarkPreview);
     }
+  });
+  
+  if (wmImgFileInput) {
+    wmImgFileInput.addEventListener('change', updateWatermarkPreview);
+  }
+
+  wmType.addEventListener('change', () => {
+    if (wmType.value === 'text') {
+      textOptions.style.display = 'block';
+      imageOptions.style.display = 'none';
+    } else {
+      textOptions.style.display = 'none';
+      imageOptions.style.display = 'block';
+    }
+    updateWatermarkPreview();
   });
 
   async function updateWatermarkPreview() {
@@ -1277,7 +1292,8 @@ function initWatermarkTab() {
       pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
       const pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
       const page = await pdf.getPage(1);
-      const viewport = page.getViewport({ scale: 0.5 });
+      const scale = 0.5;
+      const viewport = page.getViewport({ scale: scale });
 
       const canvas = document.createElement('canvas');
       canvas.width = viewport.width;
@@ -1286,24 +1302,61 @@ function initWatermarkTab() {
 
       await page.render({ canvasContext: ctx, viewport: viewport }).promise;
 
-      const opacity = parseFloat(wmOpacity.value) || 0.5;
+      const rawOpacity = parseFloat(wmOpacity.value);
+      const opacity = (isNaN(rawOpacity) ? 30 : rawOpacity) / 100.0;
       ctx.save();
-      ctx.globalAlpha = opacity;
+      ctx.globalAlpha = Math.max(0.05, Math.min(1.0, opacity));
+
+      const pos = wmPosition.value || 'center';
+      let posX = viewport.width / 2;
+      let posY = viewport.height / 2;
+      if (pos === 'top' || pos === 'top-center') posY = 40;
+      else if (pos === 'bottom' || pos === 'bottom-center') posY = viewport.height - 40;
+      else if (pos === 'top-left') { posX = 70; posY = 40; }
+      else if (pos === 'top-right') { posX = viewport.width - 70; posY = 40; }
+      else if (pos === 'bottom-left') { posX = 70; posY = viewport.height - 40; }
+      else if (pos === 'bottom-right') { posX = viewport.width - 70; posY = viewport.height - 40; }
 
       if (wmType.value === 'text') {
         const text = wmText.value || 'CONFIDENTIAL';
-        const fontSize = (parseInt(wmFontSize.value) || 36) * 0.5;
-        const color = wmColor.value || '#ff0000';
-        const rotation = (parseInt(wmRotation.value) || 45) * Math.PI / 180;
+        const fontSize = (parseInt(wmFontSize.value) || 60) * scale;
+        const color = wmColor.value || '#ef4444';
+        const rotationDeg = parseInt(wmRotation.value);
+        const rotation = (isNaN(rotationDeg) ? -45 : rotationDeg) * Math.PI / 180;
 
         ctx.font = `bold ${fontSize}px Arial, sans-serif`;
         ctx.fillStyle = color;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
 
-        ctx.translate(viewport.width / 2, viewport.height / 2);
+        ctx.translate(posX, posY);
         ctx.rotate(rotation);
         ctx.fillText(text, 0, 0);
+      } else if (wmType.value === 'image' && wmImgFileInput.files && wmImgFileInput.files[0]) {
+        const imgFile = wmImgFileInput.files[0];
+        const imgScalePct = (parseInt(wmImgScale.value) || 30) / 100.0;
+        const img = new Image();
+        const imgUrl = URL.createObjectURL(imgFile);
+        
+        await new Promise((resolve) => {
+          img.onload = resolve;
+          img.onerror = resolve;
+          img.src = imgUrl;
+        });
+
+        const maxDim = Math.min(viewport.width, viewport.height) * imgScalePct;
+        let w = img.width || 100;
+        let h = img.height || 100;
+        if (w > h) {
+          h = (h / w) * maxDim;
+          w = maxDim;
+        } else {
+          w = (w / h) * maxDim;
+          h = maxDim;
+        }
+
+        ctx.drawImage(img, posX - w / 2, posY - h / 2, w, h);
+        URL.revokeObjectURL(imgUrl);
       }
       ctx.restore();
 
@@ -1313,7 +1366,7 @@ function initWatermarkTab() {
       wrap.appendChild(canvas);
       previewContainer.appendChild(wrap);
     } catch (e) {
-      console.error(e);
+      console.error("Watermark preview error:", e);
     }
   }
 
@@ -2083,6 +2136,24 @@ function initConvertersTab() {
   const successCard = document.getElementById('conv-success');
   const btnDownload = document.getElementById('btn-download-conv');
 
+  const btnToggleAdv = document.getElementById('btn-toggle-conv-adv');
+  const advPanel = document.getElementById('conv-adv-panel');
+  const advChevron = document.getElementById('conv-adv-chevron');
+
+  const advPdf2WordGroup = document.getElementById('conv-adv-pdf2word');
+  const advPdf2PptxGroup = document.getElementById('conv-adv-pdf2pptx');
+  const advWord2PdfGroup = document.getElementById('conv-adv-word2pdf');
+
+  if (btnToggleAdv && advPanel) {
+    btnToggleAdv.addEventListener('click', () => {
+      const isHidden = advPanel.style.display === 'none';
+      advPanel.style.display = isHidden ? 'block' : 'none';
+      if (advChevron) {
+        advChevron.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
+      }
+    });
+  }
+
   // Toggle conversion modes
   function setConvType(type) {
     currentConvType = type;
@@ -2096,6 +2167,10 @@ function initConvertersTab() {
     if (wordModeGroup) {
       wordModeGroup.style.display = type === 'pdf-to-word' ? 'block' : 'none';
     }
+
+    if (advPdf2WordGroup) advPdf2WordGroup.style.display = type === 'pdf-to-word' ? 'block' : 'none';
+    if (advPdf2PptxGroup) advPdf2PptxGroup.style.display = type === 'pdf-to-pptx' ? 'block' : 'none';
+    if (advWord2PdfGroup) advWord2PdfGroup.style.display = type === 'word-to-pdf' ? 'block' : 'none';
 
     if (type === 'pdf-to-word') {
       btnTypeWord.style.background = 'rgba(255,255,255,0.08)';
@@ -2236,24 +2311,35 @@ function initConvertersTab() {
       const outName = outputNameInput.value || 'Converted_File';
       let targetExt = '.docx';
       
+      const advOptions = {
+        tblStyle: document.getElementById('conv-adv-tbl-style')?.value || 'blue_header',
+        pageRange: document.getElementById('conv-adv-pages')?.value || 'all',
+        autoFitWord: document.getElementById('conv-adv-autofit-word')?.checked ?? true,
+        aspectRatio: document.getElementById('conv-adv-aspect')?.value || '16:9',
+        includeImages: document.getElementById('conv-adv-inc-img')?.checked ?? true,
+        wordWrapPptx: document.getElementById('conv-adv-wrap-pptx')?.checked ?? true,
+        pdfOrientation: document.getElementById('conv-adv-pdf-orient')?.value || 'portrait',
+        pdfTheme: document.getElementById('conv-adv-pdf-theme')?.value || '#0284C7'
+      };
+
       if (currentConvType === 'pdf-to-word') {
         const wordModeSelect = document.getElementById('conv-word-mode');
         const wordMode = wordModeSelect ? wordModeSelect.value : 'layout';
-        resultBlob = await pdfToWord(convFile, wordMode, (progress, message) => {
+        resultBlob = await pdfToWord(convFile, wordMode, advOptions, (progress, message) => {
           progressBar.style.width = `${progress * 100}%`;
           progressPercent.textContent = `${Math.round(progress * 100)}%`;
           progressMsg.textContent = message;
         });
         targetExt = '.docx';
       } else if (currentConvType === 'pdf-to-pptx') {
-        resultBlob = await pdfToPPTX(convFile, outName, (progress, message) => {
+        resultBlob = await pdfToPPTX(convFile, outName, advOptions, (progress, message) => {
           progressBar.style.width = `${progress * 100}%`;
           progressPercent.textContent = `${Math.round(progress * 100)}%`;
           progressMsg.textContent = message;
         });
         targetExt = '.pptx';
       } else if (currentConvType === 'word-to-pdf') {
-        resultBlob = await wordToPDF(convFile, outName, (progress, message) => {
+        resultBlob = await wordToPDF(convFile, outName, advOptions, (progress, message) => {
           progressBar.style.width = `${progress * 100}%`;
           progressPercent.textContent = `${Math.round(progress * 100)}%`;
           progressMsg.textContent = message;

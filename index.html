@@ -848,6 +848,88 @@
                 <option value="text">Editable Text Flow (Paragraphs &amp; Tables)</option>
               </select>
             </div>
+
+            <!-- Advanced Conversion Settings Panel -->
+            <div style="margin-bottom: 1.25rem;">
+              <button type="button" class="ctrl-btn" id="btn-toggle-conv-adv" style="width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 0.65rem 0.9rem; font-size: 0.85rem; border-color: rgba(255,255,255,0.15);">
+                <span style="display: flex; align-items: center; gap: 0.4rem;">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+                  Advanced Options
+                </span>
+                <span id="conv-adv-chevron" style="transition: transform 0.2s; font-size: 0.75rem;">▼</span>
+              </button>
+              
+              <div id="conv-adv-panel" style="display: none; margin-top: 0.75rem; padding: 0.85rem; background: rgba(0,0,0,0.25); border-radius: 8px; border: 1px solid rgba(255,255,255,0.08);">
+                
+                <!-- PDF to Word Advanced Controls -->
+                <div id="conv-adv-pdf2word">
+                  <div class="settings-group" style="margin-bottom: 0.75rem;">
+                    <label class="settings-label" for="conv-adv-tbl-style">Table Border Style</label>
+                    <select id="conv-adv-tbl-style" class="settings-select">
+                      <option value="blue_header" selected>Styled Blue Headers (#0284C7)</option>
+                      <option value="grid">Standard Full Grid Borders</option>
+                      <option value="minimal">Clean Minimal Borderless</option>
+                    </select>
+                  </div>
+                  <div class="settings-group" style="margin-bottom: 0.75rem;">
+                    <label class="settings-label" for="conv-adv-pages">Page Range Filter</label>
+                    <input type="text" id="conv-adv-pages" class="settings-input" value="all" placeholder="e.g. all or 1-3, 5">
+                  </div>
+                  <div class="toggle-switch" style="margin-bottom: 0.25rem;">
+                    <div class="toggle-info">
+                      <span class="toggle-name" style="font-size: 0.8rem;">Auto-Fit Table Margins</span>
+                    </div>
+                    <input type="checkbox" id="conv-adv-autofit-word" class="toggle-checkbox" checked>
+                  </div>
+                </div>
+
+                <!-- PDF to PPTX Advanced Controls -->
+                <div id="conv-adv-pdf2pptx" style="display: none;">
+                  <div class="settings-group" style="margin-bottom: 0.75rem;">
+                    <label class="settings-label" for="conv-adv-aspect">Slide Aspect Ratio</label>
+                    <select id="conv-adv-aspect" class="settings-select">
+                      <option value="16:9" selected>Widescreen (16:9)</option>
+                      <option value="4:3">Standard (4:3)</option>
+                      <option value="auto">Match Document Aspect Ratio</option>
+                    </select>
+                  </div>
+                  <div class="toggle-switch" style="margin-bottom: 0.5rem;">
+                    <div class="toggle-info">
+                      <span class="toggle-name" style="font-size: 0.8rem;">Include Embedded Images</span>
+                    </div>
+                    <input type="checkbox" id="conv-adv-inc-img" class="toggle-checkbox" checked>
+                  </div>
+                  <div class="toggle-switch" style="margin-bottom: 0.25rem;">
+                    <div class="toggle-info">
+                      <span class="toggle-name" style="font-size: 0.8rem;">Word-Wrap Text Frames</span>
+                    </div>
+                    <input type="checkbox" id="conv-adv-wrap-pptx" class="toggle-checkbox" checked>
+                  </div>
+                </div>
+
+                <!-- Word to PDF Advanced Controls -->
+                <div id="conv-adv-word2pdf" style="display: none;">
+                  <div class="settings-group" style="margin-bottom: 0.75rem;">
+                    <label class="settings-label" for="conv-adv-pdf-orient">Page Orientation</label>
+                    <select id="conv-adv-pdf-orient" class="settings-select">
+                      <option value="portrait" selected>Portrait (Vertical)</option>
+                      <option value="landscape">Landscape (Horizontal)</option>
+                    </select>
+                  </div>
+                  <div class="settings-group" style="margin-bottom: 0.75rem;">
+                    <label class="settings-label" for="conv-adv-pdf-theme">Header Color Theme</label>
+                    <select id="conv-adv-pdf-theme" class="settings-select">
+                      <option value="#0284C7" selected>Sky Blue (#0284C7)</option>
+                      <option value="#1E293B">Dark Slate (#1E293B)</option>
+                      <option value="#059669">Emerald Green (#059669)</option>
+                      <option value="#7C3AED">Royal Purple (#7C3AED)</option>
+                    </select>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
             <button class="action-btn" id="btn-run-conv" style="background: linear-gradient(135deg, var(--secondary) 0%, #0891b2 100%);" disabled>Convert Format</button>
             
             <div class="progress-container" id="conv-progress">

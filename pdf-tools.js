@@ -777,10 +777,18 @@ async function watermarkPDF(file, options = {}, onProgress = () => {}) {
       let x = (width - textWidth) / 2;
       let y = (height - textHeight) / 2;
       
-      if (position === 'top') {
-        y = height - textHeight - 60;
-      } else if (position === 'bottom') {
-        y = 60;
+      if (position === 'top' || position === 'top-center') {
+        y = height - textHeight - 50;
+      } else if (position === 'bottom' || position === 'bottom-center') {
+        y = 50;
+      } else if (position === 'top-left') {
+        x = 50; y = height - textHeight - 50;
+      } else if (position === 'top-right') {
+        x = width - textWidth - 50; y = height - textHeight - 50;
+      } else if (position === 'bottom-left') {
+        x = 50; y = 50;
+      } else if (position === 'bottom-right') {
+        x = width - textWidth - 50; y = 50;
       }
       
       page.drawText(text, {
@@ -796,10 +804,18 @@ async function watermarkPDF(file, options = {}, onProgress = () => {}) {
       let x = (width - imgWidth) / 2;
       let y = (height - imgHeight) / 2;
       
-      if (position === 'top') {
-        y = height - imgHeight - 60;
-      } else if (position === 'bottom') {
-        y = 60;
+      if (position === 'top' || position === 'top-center') {
+        y = height - imgHeight - 50;
+      } else if (position === 'bottom' || position === 'bottom-center') {
+        y = 50;
+      } else if (position === 'top-left') {
+        x = 50; y = height - imgHeight - 50;
+      } else if (position === 'top-right') {
+        x = width - imgWidth - 50; y = height - imgHeight - 50;
+      } else if (position === 'bottom-left') {
+        x = 50; y = 50;
+      } else if (position === 'bottom-right') {
+        x = width - imgWidth - 50; y = 50;
       }
       
       page.drawImage(img, {
@@ -885,7 +901,11 @@ async function extractTextFromPDF(arrayBuffer, onProgress) {
 /**
  * Convert PDF to editable Word document (DOCX)
  */
-async function pdfToWord(file, mode = 'layout', onProgress = () => {}) {
+async function pdfToWord(file, mode = 'layout', options = {}, onProgress = () => {}) {
+  if (typeof options === 'function') {
+    onProgress = options;
+    options = {};
+  }
   onProgress(0.05, "Reading PDF document bytes...");
   const arrayBuffer = await fileToArrayBuffer(file);
 
@@ -895,7 +915,9 @@ async function pdfToWord(file, mode = 'layout', onProgress = () => {}) {
     const response = await fetch('/api/convert_pdf_to_word', {
       method: 'POST',
       headers: {
-        'X-Mode': mode
+        'X-Mode': mode,
+        'X-Tbl-Style': options.tblStyle || 'blue_header',
+        'X-Page-Range': options.pageRange || 'all'
       },
       body: new Uint8Array(arrayBuffer.slice(0))
     });
@@ -904,6 +926,8 @@ async function pdfToWord(file, mode = 'layout', onProgress = () => {}) {
       const blob = await response.blob();
       onProgress(1.0, "Word document conversion finished!");
       return blob;
+    } else {
+      console.warn(`Backend PDF to Word returned HTTP ${response.status}, using client fallback`);
     }
   } catch (err) {
     console.warn("Backend PDF to Word conversion unavailable, using client fallback:", err);
@@ -1073,7 +1097,11 @@ function base64ToBlob(base64, mimeType) {
 /**
  * Convert PDF pages to PowerPoint slides with native text boxes (PPTX)
  */
-async function pdfToPPTX(file, outputName = "Presentation.pptx", onProgress = () => {}) {
+async function pdfToPPTX(file, outputName = "Presentation.pptx", options = {}, onProgress = () => {}) {
+  if (typeof options === 'function') {
+    onProgress = options;
+    options = {};
+  }
   onProgress(0.05, "Reading PDF document bytes...");
   const arrayBuffer = await fileToArrayBuffer(file);
 
@@ -1082,6 +1110,10 @@ async function pdfToPPTX(file, outputName = "Presentation.pptx", onProgress = ()
     onProgress(0.15, "Connecting to presentation conversion engine...");
     const response = await fetch('/api/convert_pdf_to_pptx', {
       method: 'POST',
+      headers: {
+        'X-Aspect-Ratio': options.aspectRatio || '16:9',
+        'X-Include-Images': options.includeImages !== false ? 'true' : 'false'
+      },
       body: new Uint8Array(arrayBuffer.slice(0))
     });
     if (response.ok) {
@@ -1089,6 +1121,8 @@ async function pdfToPPTX(file, outputName = "Presentation.pptx", onProgress = ()
       const blob = await response.blob();
       onProgress(1.0, "Conversion complete!");
       return blob;
+    } else {
+      console.warn(`Backend PDF to PPTX returned HTTP ${response.status}, using client fallback`);
     }
   } catch (err) {
     console.warn("Backend PDF to PPTX conversion unavailable, using client fallback:", err);
@@ -1101,7 +1135,7 @@ async function pdfToPPTX(file, outputName = "Presentation.pptx", onProgress = ()
   const numPages = pdf.numPages;
   
   const pptx = new PptxGenJS();
-  pptx.layout = 'LAYOUT_WIDE'; // 10 x 5.625 inches
+  pptx.layout = options.aspectRatio === '4:3' ? 'LAYOUT_4x3' : 'LAYOUT_WIDE';
 
   for (let pageNum = 1; pageNum <= numPages; pageNum++) {
     onProgress(0.2 + ((pageNum - 1) / numPages) * 0.7, `Generating editable slide ${pageNum} of ${numPages}...`);
@@ -1168,7 +1202,11 @@ async function pdfToPPTX(file, outputName = "Presentation.pptx", onProgress = ()
 /**
  * Convert Word Document (DOCX) to PDF
  */
-async function wordToPDF(file, outputName = "Document.pdf", onProgress = () => {}) {
+async function wordToPDF(file, outputName = "Document.pdf", options = {}, onProgress = () => {}) {
+  if (typeof options === 'function') {
+    onProgress = options;
+    options = {};
+  }
   onProgress(0.05, "Reading Word document bytes...");
   const arrayBuffer = await fileToArrayBuffer(file);
 
@@ -1177,6 +1215,10 @@ async function wordToPDF(file, outputName = "Document.pdf", onProgress = () => {
     onProgress(0.15, "Connecting to vector PDF engine...");
     const response = await fetch('/api/convert_word_to_pdf', {
       method: 'POST',
+      headers: {
+        'X-PDF-Orientation': options.pdfOrientation || 'portrait',
+        'X-PDF-Theme': options.pdfTheme || '#0284C7'
+      },
       body: new Uint8Array(arrayBuffer.slice(0))
     });
     if (response.ok) {
@@ -1184,6 +1226,8 @@ async function wordToPDF(file, outputName = "Document.pdf", onProgress = () => {
       const blob = await response.blob();
       onProgress(1.0, "Conversion finished!");
       return blob;
+    } else {
+      console.warn(`Backend Word to PDF returned HTTP ${response.status}, using client fallback`);
     }
   } catch (err) {
     console.warn("Backend Word to PDF conversion unavailable, using client fallback:", err);
