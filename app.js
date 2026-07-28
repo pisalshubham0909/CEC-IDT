@@ -971,19 +971,126 @@ function initSecurityTab() {
     }
   });
   
-  function loadFile(file) {
+  async function loadFile(file) {
     securityFile = file;
     dropzone.style.display = 'none';
     infoBlock.style.display = 'block';
     btnRun.disabled = false;
     successCard.style.display = 'none';
-    if (previewContainer) previewContainer.style.display = 'none';
     
     fileNameLabel.textContent = file.name;
     fileSizeLabel.textContent = formatBytes(file.size);
-    filePagesLabel.textContent = "PDF Document";
+    filePagesLabel.textContent = "Reading pages...";
     
     outputNameInput.value = modeSelect.value === 'encrypt' ? file.name.replace('.pdf', '_Protected.pdf') : file.name.replace('.pdf', '_Unlocked.pdf');
+    
+    if (previewContainer) {
+      previewContainer.style.display = 'flex';
+      previewContainer.innerHTML = '<span style="color: var(--text-muted); font-size: 0.85rem;">Rendering preview...</span>';
+    }
+    
+    try {
+      const arrayBuffer = await fileToArrayBuffer(file);
+      if (typeof pdfjsLib !== 'undefined') {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      }
+      
+      const pwd = passwordInput ? passwordInput.value : '';
+      let pdf;
+      try {
+        // Try opening without password first
+        pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
+      } catch (noPwdErr) {
+        if (noPwdErr.name === 'PasswordException' || (noPwdErr.message && noPwdErr.message.includes('password'))) {
+          if (pwd) {
+            try {
+              pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0), password: pwd }).promise;
+            } catch (withPwdErr) {
+              filePagesLabel.textContent = "Pages: Encrypted PDF";
+              if (previewContainer) {
+                previewContainer.innerHTML = `
+                  <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5rem; gap: 0.5rem; text-align: center;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    <span style="color: var(--text-main); font-weight: 600; font-size: 0.9rem;">Password Protected Document</span>
+                    <span style="color: var(--text-muted); font-size: 0.75rem;">Enter password in the sidebar to preview document</span>
+                  </div>
+                `;
+              }
+              return;
+            }
+          } else {
+            filePagesLabel.textContent = "Pages: Encrypted PDF";
+            if (previewContainer) {
+              previewContainer.innerHTML = `
+                <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5rem; gap: 0.5rem; text-align: center;">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="var(--warning)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                  <span style="color: var(--text-main); font-weight: 600; font-size: 0.9rem;">Password Protected Document</span>
+                  <span style="color: var(--text-muted); font-size: 0.75rem;">Enter password in the sidebar to preview document</span>
+                </div>
+              `;
+            }
+            return;
+          }
+        } else {
+          throw noPwdErr;
+        }
+      }
+
+      filePagesLabel.textContent = `Pages: ${pdf.numPages}`;
+      
+      if (previewContainer) {
+        const page = await pdf.getPage(1);
+        const origViewport = page.getViewport({ scale: 1.0 });
+        const targetWidth = Math.min(280, Math.max(200, (previewContainer.clientWidth || 300) - 30));
+        const scaleFactor = targetWidth / origViewport.width;
+        const viewport = page.getViewport({ scale: scaleFactor });
+
+        const canvas = document.createElement('canvas');
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        canvas.style.backgroundColor = '#ffffff';
+        canvas.style.borderRadius = '6px';
+        canvas.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.4)';
+        canvas.style.display = 'block';
+
+        const context = canvas.getContext('2d');
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        
+        previewContainer.innerHTML = '';
+        const wrap = document.createElement('div');
+        wrap.style.display = 'flex';
+        wrap.style.justifyContent = 'center';
+        wrap.style.alignItems = 'center';
+        wrap.style.padding = '0.75rem';
+        wrap.style.width = '100%';
+        wrap.appendChild(canvas);
+        previewContainer.appendChild(wrap);
+        
+        await page.render({ canvasContext: context, viewport: viewport }).promise;
+      }
+    } catch (e) {
+      console.warn("Security preview fallback:", e);
+      filePagesLabel.textContent = "Pages: Ready";
+      if (previewContainer) {
+        previewContainer.innerHTML = `
+          <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 1.5rem; gap: 0.5rem; text-align: center;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+            <span style="color: var(--text-main); font-weight: 600; font-size: 0.85rem;">PDF Document Loaded</span>
+          </div>
+        `;
+      }
+    }
+  }
+
+  let pwdDebounceTimer = null;
+  if (passwordInput) {
+    passwordInput.addEventListener('input', () => {
+      clearTimeout(pwdDebounceTimer);
+      pwdDebounceTimer = setTimeout(() => {
+        if (securityFile) loadFile(securityFile);
+      }, 350);
+    });
   }
   
   btnClear.addEventListener('click', resetSecurityTab);
