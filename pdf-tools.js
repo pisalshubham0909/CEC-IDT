@@ -498,10 +498,29 @@ async function compressPDF(file, level = 'medium', onProgress = () => {}) {
  * @returns {Promise<Uint8Array>} Updated PDF bytes
  */
 async function saveEditedPDF(originalBytes, annotations, applyToAllPages = false, onProgress = () => {}) {
+  if (typeof applyToAllPages === 'function') {
+    onProgress = applyToAllPages;
+    applyToAllPages = false;
+  }
   onProgress(0.2, "Loading original document...");
   const pdfDoc = await PDFLib.PDFDocument.load(originalBytes);
   const pages = pdfDoc.getPages();
   const standardFont = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+
+  function fastDataUrlBuffer(dataUrl) {
+    try {
+      const base64 = dataUrl.split(',')[1] || dataUrl;
+      const binaryString = atob(base64);
+      const len = binaryString.length;
+      const bytes = new Uint8Array(len);
+      for (let i = 0; i < len; i++) {
+        bytes[i] = binaryString.charCodeAt(i);
+      }
+      return bytes.buffer;
+    } catch (e) {
+      return null;
+    }
+  }
   
   for (let i = 0; i < annotations.length; i++) {
     const annot = annotations[i];
@@ -514,9 +533,7 @@ async function saveEditedPDF(originalBytes, annotations, applyToAllPages = false
       const { width, height } = page.getSize();
       
       if (annot.type === 'text') {
-        // Map coordinates back: x is left percent, y is top percent
         const pdfX = annot.x * width;
-        // Adjust vertical align since PDF draws baseline up
         const pdfY = (1.0 - annot.y) * height - (annot.fontSize * 0.82);
         
         page.drawText(annot.text, {
@@ -527,8 +544,12 @@ async function saveEditedPDF(originalBytes, annotations, applyToAllPages = false
           color: PDFLib.rgb(0, 0, 0)
         });
       } else if (annot.type === 'image') {
-        const response = await fetch(annot.imageSrc);
-        const imgBuffer = await response.arrayBuffer();
+        let imgBuffer = fastDataUrlBuffer(annot.imageSrc);
+        if (!imgBuffer) {
+          const response = await fetch(annot.imageSrc);
+          imgBuffer = await response.arrayBuffer();
+        }
+        
         let embeddedImg;
         if (annot.imageSrc.startsWith('data:image/jpeg') || annot.imageSrc.startsWith('data:image/jpg')) {
           embeddedImg = await pdfDoc.embedJpg(imgBuffer);

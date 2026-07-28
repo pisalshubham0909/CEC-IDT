@@ -1697,13 +1697,191 @@ function initEditTab() {
     }
   });
   
+  let pdfDocumentInstance = null;
+  let currentViewMode = 'single'; // 'single' (fast for 1000+ pages), 'all'
+  let savedPageNodes = {}; // Cache added annotations per page: { pageIndex: [HTMLNodeClones] }
+
+  const navBar = document.getElementById('edit-page-nav-bar');
+  const btnPrevPage = document.getElementById('btn-edit-prev-page');
+  const btnNextPage = document.getElementById('btn-edit-next-page');
+  const pageIndicator = document.getElementById('edit-page-indicator');
+  const jumpInput = document.getElementById('edit-jump-page-input');
+  const btnJump = document.getElementById('btn-edit-jump-page');
+  const viewModeSelect = document.getElementById('edit-view-mode');
+
+  if (viewModeSelect) {
+    viewModeSelect.addEventListener('change', () => {
+      currentViewMode = viewModeSelect.value;
+      if (pdfDocumentInstance) renderWorkspace();
+    });
+  }
+
+  if (btnPrevPage) {
+    btnPrevPage.addEventListener('click', () => {
+      if (activePageIndex > 0) {
+        saveCurrentPageNodes(activePageIndex);
+        activePageIndex--;
+        renderWorkspace();
+      }
+    });
+  }
+
+  if (btnNextPage) {
+    btnNextPage.addEventListener('click', () => {
+      if (activePageIndex < totalPages - 1) {
+        saveCurrentPageNodes(activePageIndex);
+        activePageIndex++;
+        renderWorkspace();
+      }
+    });
+  }
+
+  if (btnJump) {
+    btnJump.addEventListener('click', () => {
+      const targetPage = parseInt(jumpInput.value, 10);
+      if (!isNaN(targetPage) && targetPage >= 1 && targetPage <= totalPages) {
+        saveCurrentPageNodes(activePageIndex);
+        activePageIndex = targetPage - 1;
+        renderWorkspace();
+      }
+    });
+  }
+
+  function saveCurrentPageNodes(pageIndex) {
+    const overlay = document.getElementById(`editor-overlay-${pageIndex}`);
+    if (!overlay) return;
+    savedPageNodes[pageIndex] = Array.from(overlay.children).map(child => child.cloneNode(true));
+  }
+
+  async function renderWorkspace() {
+    if (!pdfDocumentInstance) return;
+    workspace.innerHTML = '';
+    
+    if (pageIndicator) {
+      pageIndicator.textContent = `Page ${activePageIndex + 1} of ${totalPages}`;
+    }
+    if (jumpInput) {
+      jumpInput.value = activePageIndex + 1;
+      jumpInput.max = totalPages;
+    }
+
+    if (currentViewMode === 'single' || totalPages > 10) {
+      // High-performance single page view (Instant load even for 1000+ pages)
+      const pageIndex = activePageIndex;
+      const pageNum = pageIndex + 1;
+      const page = await pdfDocumentInstance.getPage(pageNum);
+      const scaleFactor = Math.min(1.0, 750 / page.getViewport({ scale: 1.0 }).width);
+      const viewport = page.getViewport({ scale: scaleFactor });
+
+      const frame = document.createElement('div');
+      frame.className = 'editor-page-frame';
+      frame.id = `editor-page-${pageIndex}`;
+      frame.style.width = `${viewport.width}px`;
+      frame.style.height = `${viewport.height}px`;
+      frame.style.borderColor = 'var(--secondary)';
+
+      const canvas = document.createElement('canvas');
+      canvas.className = 'editor-canvas';
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const context = canvas.getContext('2d', { alpha: false });
+
+      const overlay = document.createElement('div');
+      overlay.className = 'editor-overlay';
+      overlay.id = `editor-overlay-${pageIndex}`;
+
+      // Restore previously saved annotations for this page
+      if (savedPageNodes[pageIndex]) {
+        savedPageNodes[pageIndex].forEach(clonedChild => {
+          const rehydrated = clonedChild.cloneNode(true);
+          overlay.appendChild(rehydrated);
+          const delBtn = rehydrated.querySelector('.editor-node-delete-btn');
+          const resizeHandle = rehydrated.querySelector('.editor-node-resize-handle');
+          makeElementDraggable(rehydrated, overlay);
+          if (resizeHandle) makeElementResizable(rehydrated, resizeHandle);
+          if (delBtn) {
+            delBtn.addEventListener('click', (e) => {
+              e.stopPropagation();
+              rehydrated.remove();
+            });
+          }
+        });
+      }
+
+      frame.appendChild(canvas);
+      frame.appendChild(overlay);
+      workspace.appendChild(frame);
+
+      await page.render({ canvasContext: context, viewport: viewport }).promise;
+    } else {
+      // Multipage continuous view for small documents
+      for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+        const pageIndex = pageNum - 1;
+        const page = await pdfDocumentInstance.getPage(pageNum);
+        const scaleFactor = Math.min(1.0, 750 / page.getViewport({ scale: 1.0 }).width);
+        const viewport = page.getViewport({ scale: scaleFactor });
+
+        const frame = document.createElement('div');
+        frame.className = 'editor-page-frame';
+        frame.id = `editor-page-${pageIndex}`;
+        frame.style.width = `${viewport.width}px`;
+        frame.style.height = `${viewport.height}px`;
+        if (pageIndex === activePageIndex) frame.style.borderColor = 'var(--secondary)';
+
+        const canvas = document.createElement('canvas');
+        canvas.className = 'editor-canvas';
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const context = canvas.getContext('2d', { alpha: false });
+
+        const overlay = document.createElement('div');
+        overlay.className = 'editor-overlay';
+        overlay.id = `editor-overlay-${pageIndex}`;
+
+        if (savedPageNodes[pageIndex]) {
+          savedPageNodes[pageIndex].forEach(clonedChild => {
+            const rehydrated = clonedChild.cloneNode(true);
+            overlay.appendChild(rehydrated);
+            const delBtn = rehydrated.querySelector('.editor-node-delete-btn');
+            const resizeHandle = rehydrated.querySelector('.editor-node-resize-handle');
+            makeElementDraggable(rehydrated, overlay);
+            if (resizeHandle) makeElementResizable(rehydrated, resizeHandle);
+            if (delBtn) {
+              delBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                rehydrated.remove();
+              });
+            }
+          });
+        }
+
+        frame.appendChild(canvas);
+        frame.appendChild(overlay);
+        workspace.appendChild(frame);
+
+        requestAnimationFrame(async () => {
+          await page.render({ canvasContext: context, viewport: viewport }).promise;
+        });
+
+        frame.addEventListener('click', () => {
+          activePageIndex = pageIndex;
+          document.querySelectorAll('.editor-page-frame').forEach(f => f.style.borderColor = 'rgba(255,255,255,0.15)');
+          frame.style.borderColor = 'var(--secondary)';
+        });
+      }
+    }
+  }
+
   async function loadFile(file) {
     editFile = file;
     dropzone.style.display = 'none';
     infoBlock.style.display = 'block';
+    if (navBar) navBar.style.display = 'flex';
     btnRun.disabled = false;
     successCard.style.display = 'none';
     annotations = [];
+    savedPageNodes = {};
+    activePageIndex = 0;
     
     fileNameLabel.textContent = file.name;
     fileSizeLabel.textContent = formatBytes(file.size);
@@ -1716,53 +1894,17 @@ function initEditTab() {
     try {
       originalPdfBytes = await fileToArrayBuffer(file);
       pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      const pdf = await pdfjsLib.getDocument({ data: originalPdfBytes.slice(0) }).promise;
-      totalPages = pdf.numPages;
+      pdfDocumentInstance = await pdfjsLib.getDocument({ data: originalPdfBytes.slice(0) }).promise;
+      totalPages = pdfDocumentInstance.numPages;
       filePagesLabel.textContent = `Pages: ${totalPages}`;
       
-      workspace.innerHTML = '';
-      
-      for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
-        const pageIndex = pageNum - 1;
-        const page = await pdf.getPage(pageNum);
-        const scaleFactor = Math.min(1.0, 750 / page.getViewport({ scale: 1.0 }).width);
-        const viewport = page.getViewport({ scale: scaleFactor });
-        
-        const frame = document.createElement('div');
-        frame.className = 'editor-page-frame';
-        frame.id = `editor-page-${pageIndex}`;
-        frame.style.width = `${viewport.width}px`;
-        frame.style.height = `${viewport.height}px`;
-        
-        const canvas = document.createElement('canvas');
-        canvas.className = 'editor-canvas';
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-        const context = canvas.getContext('2d', { alpha: false });
-        
-        const overlay = document.createElement('div');
-        overlay.className = 'editor-overlay';
-        overlay.id = `editor-overlay-${pageIndex}`;
-        
-        frame.appendChild(canvas);
-        frame.appendChild(overlay);
-        workspace.appendChild(frame);
-        
-        // Render asynchronously to prevent main thread blocking
-        requestAnimationFrame(async () => {
-          await page.render({ canvasContext: context, viewport: viewport }).promise;
-        });
-        
-        frame.addEventListener('click', () => {
-          activePageIndex = pageIndex;
-          document.querySelectorAll('.editor-page-frame').forEach(f => f.style.borderColor = 'rgba(255,255,255,0.15)');
-          frame.style.borderColor = 'var(--secondary)';
-        });
+      // Auto-set fast single-page view for documents with > 10 pages
+      if (totalPages > 10) {
+        currentViewMode = 'single';
+        if (viewModeSelect) viewModeSelect.value = 'single';
       }
       
-      activePageIndex = 0;
-      const firstFrame = document.getElementById('editor-page-0');
-      if (firstFrame) firstFrame.style.borderColor = 'var(--secondary)';
+      await renderWorkspace();
       
       btnAddText.disabled = false;
       btnAddDrawSig.disabled = false;
@@ -2042,45 +2184,61 @@ function initEditTab() {
     successCard.style.display = 'none';
     
     try {
+      saveCurrentPageNodes(activePageIndex);
       annotations = [];
       
       for (let pIdx = 0; pIdx < totalPages; pIdx++) {
+        let nodeElements = [];
         const overlay = document.getElementById(`editor-overlay-${pIdx}`);
-        if (!overlay) continue;
+        if (overlay) {
+          nodeElements = Array.from(overlay.children);
+        } else if (savedPageNodes[pIdx]) {
+          nodeElements = savedPageNodes[pIdx];
+        }
+
+        if (!nodeElements || nodeElements.length === 0) continue;
+
+        const frameW = 750; // Reference page frame width
+        const frameH = 1000; // Reference page frame height
         
-        const frameW = overlay.offsetWidth;
-        const frameH = overlay.offsetHeight;
-        
-        const textNodes = overlay.querySelectorAll('.editor-text-node');
-        textNodes.forEach(node => {
-          const clone = node.cloneNode(true);
-          const delBtn = clone.querySelector('.editor-node-delete-btn');
-          if (delBtn) delBtn.remove();
-          const cleanText = clone.textContent;
-          if (cleanText.trim() === 'Type notes...' || !cleanText.trim()) return;
-          
-          annotations.push({
-            type: 'text',
-            pageIndex: pIdx,
-            x: node.offsetLeft / frameW,
-            y: node.offsetTop / frameH,
-            text: cleanText.trim(),
-            fontSize: 16
-          });
-        });
-        
-        const imgNodes = overlay.querySelectorAll('.editor-img-node');
-        imgNodes.forEach(node => {
-          const imgEl = node.querySelector('img');
-          annotations.push({
-            type: 'image',
-            pageIndex: pIdx,
-            x: node.offsetLeft / frameW,
-            y: node.offsetTop / frameH,
-            width: node.offsetWidth / frameW,
-            height: node.offsetHeight / frameH,
-            imageSrc: imgEl.src
-          });
+        nodeElements.forEach(node => {
+          if (node.classList.contains('editor-text-node')) {
+            const clone = node.cloneNode(true);
+            const delBtn = clone.querySelector('.editor-node-delete-btn');
+            if (delBtn) delBtn.remove();
+            const cleanText = clone.textContent;
+            if (cleanText.trim() === 'Type notes...' || !cleanText.trim()) return;
+            
+            const leftPx = parseFloat(node.style.left) || node.offsetLeft || 50;
+            const topPx = parseFloat(node.style.top) || node.offsetTop || 50;
+            
+            annotations.push({
+              type: 'text',
+              pageIndex: pIdx,
+              x: leftPx / frameW,
+              y: topPx / frameH,
+              text: cleanText.trim(),
+              fontSize: 16
+            });
+          } else if (node.classList.contains('editor-img-node')) {
+            const imgEl = node.querySelector('img');
+            if (!imgEl) return;
+            
+            const leftPx = parseFloat(node.style.left) || node.offsetLeft || 80;
+            const topPx = parseFloat(node.style.top) || node.offsetTop || 80;
+            const widthPx = parseFloat(node.style.width) || node.offsetWidth || 160;
+            const heightPx = parseFloat(node.style.height) || node.offsetHeight || 70;
+
+            annotations.push({
+              type: 'image',
+              pageIndex: pIdx,
+              x: leftPx / frameW,
+              y: topPx / frameH,
+              width: widthPx / frameW,
+              height: heightPx / frameH,
+              imageSrc: imgEl.src
+            });
+          }
         });
       }
       
@@ -2088,7 +2246,10 @@ function initEditTab() {
       progressBar.style.width = "40%";
       progressPercent.textContent = "40%";
       
-      editedPdfBytes = await saveEditedPDF(originalPdfBytes, annotations, (progress, message) => {
+      const applyAllCheck = document.getElementById('edit-apply-all-pages');
+      const applyAll = applyAllCheck ? applyAllCheck.checked : false;
+
+      editedPdfBytes = await saveEditedPDF(originalPdfBytes, annotations, applyAll, (progress, message) => {
         progressBar.style.width = `${progress * 100}%`;
         progressPercent.textContent = `${Math.round(progress * 100)}%`;
         progressMsg.textContent = message;
@@ -2100,6 +2261,7 @@ function initEditTab() {
       
       progressContainer.style.display = 'none';
       successCard.style.display = 'flex';
+      btnRun.disabled = false;
       btnClear.disabled = false;
     } catch (err) {
       alert(`Save failed: ${err.message}`);
