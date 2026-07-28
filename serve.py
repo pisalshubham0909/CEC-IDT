@@ -227,15 +227,20 @@ def run_server():
 
                         if HAS_FITZ:
                             doc = fitz.open(stream=body, filetype="pdf")
+                            orig_len = len(body)
+
                             if level == 'high':
                                 max_dim = 1000
                                 quality = 35
+                                dpi = 120
                             elif level == 'low' or level == 'keep':
                                 max_dim = 1600
                                 quality = 65
+                                dpi = 200
                             else: # medium
                                 max_dim = 1200
                                 quality = 45
+                                dpi = 150
 
                             from PIL import Image
                             for page in doc:
@@ -263,11 +268,26 @@ def run_server():
                                                     doc.update_stream(xref, new_bytes)
                                     except Exception:
                                         pass
+
                             comp_bytes = doc.tobytes(garbage=4, deflate=True, clean=True, deflate_images=True, deflate_fonts=True)
-                            if len(comp_bytes) < len(body):
-                                res_bytes = comp_bytes
-                            else:
-                                res_bytes = comp_bytes
+
+                            # If stream compression achieved less than 20% size reduction, apply page raster compression pass!
+                            if len(comp_bytes) > (orig_len * 0.80) and len(doc) > 0:
+                                new_doc = fitz.open()
+                                for p in doc:
+                                    pix = p.get_pixmap(dpi=dpi)
+                                    pil_img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+                                    out_b = io.BytesIO()
+                                    pil_img.save(out_b, format='JPEG', quality=quality, optimize=True)
+
+                                    img_doc = fitz.open("pdf", fitz.open(stream=out_b.getvalue(), filetype="jpg").convert_to_pdf())
+                                    new_doc.insert_pdf(img_doc)
+                                    img_doc.close()
+                                comp_bytes = new_doc.tobytes(garbage=4, deflate=True)
+                                new_doc.close()
+
+                            doc.close()
+                            res_bytes = comp_bytes if len(comp_bytes) < len(body) else comp_bytes
                         else:
                             reader = PdfReader(io.BytesIO(body), strict=False)
                             writer = PdfWriter()
