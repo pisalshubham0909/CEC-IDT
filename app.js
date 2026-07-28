@@ -2136,24 +2136,6 @@ function initConvertersTab() {
   const successCard = document.getElementById('conv-success');
   const btnDownload = document.getElementById('btn-download-conv');
 
-  const btnToggleAdv = document.getElementById('btn-toggle-conv-adv');
-  const advPanel = document.getElementById('conv-adv-panel');
-  const advChevron = document.getElementById('conv-adv-chevron');
-
-  const advPdf2WordGroup = document.getElementById('conv-adv-pdf2word');
-  const advPdf2PptxGroup = document.getElementById('conv-adv-pdf2pptx');
-  const advWord2PdfGroup = document.getElementById('conv-adv-word2pdf');
-
-  if (btnToggleAdv && advPanel) {
-    btnToggleAdv.addEventListener('click', () => {
-      const isHidden = advPanel.style.display === 'none';
-      advPanel.style.display = isHidden ? 'block' : 'none';
-      if (advChevron) {
-        advChevron.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
-      }
-    });
-  }
-
   // Toggle conversion modes
   function setConvType(type) {
     currentConvType = type;
@@ -2162,15 +2144,6 @@ function initConvertersTab() {
     btnTypeWord.style.background = 'transparent';
     btnTypePptx.style.background = 'transparent';
     btnTypePdf.style.background = 'transparent';
-
-    const wordModeGroup = document.getElementById('conv-word-mode-group');
-    if (wordModeGroup) {
-      wordModeGroup.style.display = type === 'pdf-to-word' ? 'block' : 'none';
-    }
-
-    if (advPdf2WordGroup) advPdf2WordGroup.style.display = type === 'pdf-to-word' ? 'block' : 'none';
-    if (advPdf2PptxGroup) advPdf2PptxGroup.style.display = type === 'pdf-to-pptx' ? 'block' : 'none';
-    if (advWord2PdfGroup) advWord2PdfGroup.style.display = type === 'word-to-pdf' ? 'block' : 'none';
 
     if (type === 'pdf-to-word') {
       btnTypeWord.style.background = 'rgba(255,255,255,0.08)';
@@ -2311,35 +2284,22 @@ function initConvertersTab() {
       const outName = outputNameInput.value || 'Converted_File';
       let targetExt = '.docx';
       
-      const advOptions = {
-        tblStyle: document.getElementById('conv-adv-tbl-style')?.value || 'blue_header',
-        pageRange: document.getElementById('conv-adv-pages')?.value || 'all',
-        autoFitWord: document.getElementById('conv-adv-autofit-word')?.checked ?? true,
-        aspectRatio: document.getElementById('conv-adv-aspect')?.value || '16:9',
-        includeImages: document.getElementById('conv-adv-inc-img')?.checked ?? true,
-        wordWrapPptx: document.getElementById('conv-adv-wrap-pptx')?.checked ?? true,
-        pdfOrientation: document.getElementById('conv-adv-pdf-orient')?.value || 'portrait',
-        pdfTheme: document.getElementById('conv-adv-pdf-theme')?.value || '#0284C7'
-      };
-
       if (currentConvType === 'pdf-to-word') {
-        const wordModeSelect = document.getElementById('conv-word-mode');
-        const wordMode = wordModeSelect ? wordModeSelect.value : 'layout';
-        resultBlob = await pdfToWord(convFile, wordMode, advOptions, (progress, message) => {
+        resultBlob = await pdfToWord(convFile, 'layout', (progress, message) => {
           progressBar.style.width = `${progress * 100}%`;
           progressPercent.textContent = `${Math.round(progress * 100)}%`;
           progressMsg.textContent = message;
         });
         targetExt = '.docx';
       } else if (currentConvType === 'pdf-to-pptx') {
-        resultBlob = await pdfToPPTX(convFile, outName, advOptions, (progress, message) => {
+        resultBlob = await pdfToPPTX(convFile, outName, (progress, message) => {
           progressBar.style.width = `${progress * 100}%`;
           progressPercent.textContent = `${Math.round(progress * 100)}%`;
           progressMsg.textContent = message;
         });
         targetExt = '.pptx';
       } else if (currentConvType === 'word-to-pdf') {
-        resultBlob = await wordToPDF(convFile, outName, advOptions, (progress, message) => {
+        resultBlob = await wordToPDF(convFile, outName, (progress, message) => {
           progressBar.style.width = `${progress * 100}%`;
           progressPercent.textContent = `${Math.round(progress * 100)}%`;
           progressMsg.textContent = message;

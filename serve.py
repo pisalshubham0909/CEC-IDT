@@ -323,7 +323,7 @@ def run_server():
                             with open(docx_path, 'rb') as f_docx:
                                 res_docx = f_docx.read()
                         except Exception as p2d_err:
-                            print(f"pdf2docx note: {p2d_err}, using PyMuPDF + python-docx editable table fallback")
+                            print(f"pdf2docx note: {p2d_err}, using PyMuPDF dict layout + python-docx format fallback")
                             import fitz, docx
                             from docx.shared import Pt, Inches, RGBColor
                             from docx.oxml import parse_xml
@@ -366,65 +366,89 @@ def run_server():
                                 section.right_margin = Inches(0.4)
                                 
                                 printable_w = (pw / 72.0) - 0.8
-                                words = p.get_text('words')
-                                
-                                if words:
-                                    line_dict = {}
-                                    for w in words:
-                                        y_approx = round(w[1] / 6.0) * 6.0
-                                        line_dict.setdefault(y_approx, []).append(w)
-                                    
-                                    sorted_y = sorted(line_dict.keys())
-                                    table_rows_buffer = []
-                                    
-                                    def _flush_tbl(word_doc, rows_buf, p_w):
-                                        if not rows_buf: return
-                                        max_cols = max(len(r) for r in rows_buf)
-                                        tbl = word_doc.add_table(rows=len(rows_buf), cols=max_cols)
-                                        tbl.autofit = True
-                                        _set_tbl_borders(tbl)
-                                        
-                                        header_bg = "0284C7" if tbl_style == "blue_header" else ("1E293B" if tbl_style == "grid" else "F3F4F6")
-                                        header_text_white = tbl_style != "minimal"
-                                        
-                                        col_w = Inches(max(0.5, p_w / float(max_cols)))
-                                        for r_i, row_items in enumerate(rows_buf):
-                                            is_header = (r_i == 0)
-                                            for c_i, cell_text in enumerate(row_items):
-                                                if c_i < max_cols:
-                                                    cell = tbl.cell(r_i, c_i)
-                                                    cell.width = col_w
-                                                    cell.text = cell_text
-                                                    if is_header:
-                                                        _set_cell_bg(cell, header_bg)
-                                                        p_c = cell.paragraphs[0]
-                                                        for run in p_c.runs:
-                                                            run.font.bold = True
-                                                            if header_text_white:
-                                                                run.font.color.rgb = RGBColor(255, 255, 255)
-                                        word_doc.add_paragraph()
-                                        rows_buf.clear()
+                                blocks = p.get_text('dict')['blocks']
+                                table_rows_buffer = []
 
-                                    for y in sorted_y:
-                                        line_words = sorted(line_dict[y], key=lambda item: item[0])
-                                        cols = []
-                                        curr_col = [line_words[0][4]]
-                                        for i in range(1, len(line_words)):
-                                            gap = line_words[i][0] - line_words[i-1][2]
-                                            if gap > 18:
-                                                cols.append(' '.join(curr_col))
-                                                curr_col = [line_words[i][4]]
-                                            else:
-                                                curr_col.append(line_words[i][4])
-                                        cols.append(' '.join(curr_col))
-                                        
-                                        if len(cols) > 1:
-                                            table_rows_buffer.append(cols)
-                                        else:
-                                            _flush_tbl(doc_word, table_rows_buffer, printable_w)
-                                            doc_word.add_paragraph(' '.join(cols))
+                                def _flush_tbl(word_doc, rows_buf, p_w):
+                                    if not rows_buf: return
+                                    max_cols = max(len(r) for r in rows_buf)
+                                    tbl = word_doc.add_table(rows=len(rows_buf), cols=max_cols)
+                                    tbl.autofit = True
+                                    _set_tbl_borders(tbl)
+                                    
+                                    header_bg = "0284C7" if tbl_style == "blue_header" else ("1E293B" if tbl_style == "grid" else "F3F4F6")
+                                    header_text_white = tbl_style != "minimal"
+                                    col_w = Inches(max(0.5, p_w / float(max_cols)))
+                                    
+                                    for r_i, row_items in enumerate(rows_buf):
+                                        is_header = (r_i == 0)
+                                        for c_i, cell_info in enumerate(row_items):
+                                            if c_i < max_cols:
+                                                cell = tbl.cell(r_i, c_i)
+                                                cell.width = col_w
+                                                cell.text = cell_info.get('text', '')
+                                                p_c = cell.paragraphs[0]
+                                                for run in p_c.runs:
+                                                    run.font.size = Pt(max(8, min(36, round(cell_info.get('size', 10)))))
+                                                    if cell_info.get('bold'): run.font.bold = True
+                                                    if cell_info.get('italic'): run.font.italic = True
+                                                    if is_header and header_text_white:
+                                                        _set_cell_bg(cell, header_bg)
+                                                        run.font.color.rgb = RGBColor(255, 255, 255)
+                                                    elif cell_info.get('color'):
+                                                        c_int = cell_info['color']
+                                                        r_c = (c_int >> 16) & 0xFF
+                                                        g_c = (c_int >> 8) & 0xFF
+                                                        b_c = c_int & 0xFF
+                                                        run.font.color.rgb = RGBColor(r_c, g_c, b_c)
+                                    word_doc.add_paragraph()
+                                    rows_buf.clear()
+
+                                for b in blocks:
+                                    if b.get('type') == 0:
+                                        for line in b.get('lines', []):
+                                            spans = line.get('spans', [])
+                                            if not spans: continue
                                             
-                                    _flush_tbl(doc_word, table_rows_buffer, printable_w)
+                                            cols = []
+                                            curr_col_spans = [spans[0]]
+                                            for i_s in range(1, len(spans)):
+                                                gap = spans[i_s]['bbox'][0] - spans[i_s-1]['bbox'][2]
+                                                if gap > 18:
+                                                    txt_col = ' '.join(s['text'] for s in curr_col_spans)
+                                                    cols.append({'text': txt_col, 'size': curr_col_spans[0].get('size', 10), 'bold': (curr_col_spans[0].get('flags', 0) & 2) != 0, 'italic': (curr_col_spans[0].get('flags', 0) & 1) != 0, 'color': curr_col_spans[0].get('color', 0)})
+                                                    curr_col_spans = [spans[i_s]]
+                                                else:
+                                                    curr_col_spans.append(spans[i_s])
+                                            
+                                            txt_col = ' '.join(s['text'] for s in curr_col_spans)
+                                            cols.append({'text': txt_col, 'size': curr_col_spans[0].get('size', 10), 'bold': (curr_col_spans[0].get('flags', 0) & 2) != 0, 'italic': (curr_col_spans[0].get('flags', 0) & 1) != 0, 'color': curr_col_spans[0].get('color', 0)})
+                                            
+                                            if len(cols) > 1:
+                                                table_rows_buffer.append(cols)
+                                            else:
+                                                _flush_tbl(doc_word, table_rows_buffer, printable_w)
+                                                p_para = doc_word.add_paragraph()
+                                                p_para.paragraph_format.space_before = Pt(0)
+                                                p_para.paragraph_format.space_after = Pt(2)
+                                                p_para.paragraph_format.line_spacing = 1.15
+                                                for sp in spans:
+                                                    t_str = sp.get('text', '')
+                                                    if not t_str: continue
+                                                    run = p_para.add_run(t_str)
+                                                    s_pt = sp.get('size', 10)
+                                                    run.font.size = Pt(max(8, min(48, round(s_pt))))
+                                                    flg = sp.get('flags', 0)
+                                                    if flg & 2: run.font.bold = True
+                                                    if flg & 1: run.font.italic = True
+                                                    clr_int = sp.get('color', 0)
+                                                    if clr_int != 0:
+                                                        r_c = (clr_int >> 16) & 0xFF
+                                                        g_c = (clr_int >> 8) & 0xFF
+                                                        b_c = clr_int & 0xFF
+                                                        run.font.color.rgb = RGBColor(r_c, g_c, b_c)
+
+                                _flush_tbl(doc_word, table_rows_buffer, printable_w)
 
                                 if page_idx < len(doc_pdf) - 1:
                                     doc_word.add_page_break()
@@ -474,16 +498,19 @@ def run_server():
                             rect = page.rect
                             pw, ph = rect.width, rect.height
                             
+                            scale_x = prs.slide_width.inches / (pw / 72.0) if pw > 0 else 1.0
+                            scale_y = prs.slide_height.inches / (ph / 72.0) if ph > 0 else 1.0
+                            
                             slide = prs.slides.add_slide(prs.slide_layouts[6])
                             
                             blocks = page.get_text('dict')['blocks']
                             for b in blocks:
                                 if b.get('type') == 0:
                                     bbox = b.get('bbox', (0,0,100,50))
-                                    left = Inches(bbox[0] / 72.0)
-                                    top = Inches(bbox[1] / 72.0)
-                                    width = Inches(max(0.5, (bbox[2] - bbox[0]) / 72.0))
-                                    height = Inches(max(0.3, (bbox[3] - bbox[1]) / 72.0))
+                                    left = Inches((bbox[0] / 72.0) * scale_x)
+                                    top = Inches((bbox[1] / 72.0) * scale_y)
+                                    width = Inches(max(0.5, ((bbox[2] - bbox[0]) / 72.0) * scale_x))
+                                    height = Inches(max(0.3, ((bbox[3] - bbox[1]) / 72.0) * scale_y))
                                     
                                     txBox = slide.shapes.add_textbox(left, top, width, height)
                                     tf = txBox.text_frame
@@ -521,10 +548,10 @@ def run_server():
                                             img_stream = io.BytesIO(img_bytes)
                                             rects = page.get_image_rects(xref)
                                             for r in rects:
-                                                left = Inches(r.x0 / 72.0)
-                                                top = Inches(r.y0 / 72.0)
-                                                width = Inches((r.x1 - r.x0) / 72.0)
-                                                height = Inches((r.y1 - r.y0) / 72.0)
+                                                left = Inches((r.x0 / 72.0) * scale_x)
+                                                top = Inches((r.y0 / 72.0) * scale_y)
+                                                width = Inches(((r.x1 - r.x0) / 72.0) * scale_x)
+                                                height = Inches(((r.y1 - r.y0) / 72.0) * scale_y)
                                                 slide.shapes.add_picture(img_stream, left, top, width, height)
                                     except Exception:
                                         pass
