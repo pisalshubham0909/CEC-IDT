@@ -1727,17 +1727,19 @@ function initEditTab() {
       try {
         const page = await pdfDocumentInstance.getPage(pageNum);
         const origViewport = page.getViewport({ scale: 1.0 });
-        const scaleFactor = Math.min(1.0, 750 / origViewport.width);
+        const a4Width = 700;
+        const scaleFactor = a4Width / origViewport.width;
         const viewport = page.getViewport({ scale: scaleFactor });
 
         const frame = document.createElement('div');
         frame.className = 'editor-page-frame';
         frame.id = `editor-page-${pageIndex}`;
-        frame.style.width = `${viewport.width}px`;
-        frame.style.height = `${viewport.height}px`;
+        frame.style.width = `${a4Width}px`;
+        frame.style.height = `${Math.round(a4Width * 1.4142)}px`; // Standard A4 Portrait Proportion (1:1.414)
         frame.style.borderColor = pageIndex === activePageIndex ? 'var(--secondary)' : 'rgba(255,255,255,0.15)';
         frame.style.position = 'relative';
         frame.style.marginBottom = '1.5rem';
+        frame.style.background = '#ffffff';
 
         // Page Header Label Badge
         const badge = document.createElement('div');
@@ -1747,7 +1749,7 @@ function initEditTab() {
         badge.style.fontSize = '0.75rem';
         badge.style.fontWeight = '600';
         badge.style.color = 'var(--text-muted)';
-        badge.textContent = `Page ${pageNum} of ${totalPages}`;
+        badge.textContent = `A4 Page ${pageNum} of ${totalPages}`;
         frame.appendChild(badge);
 
         const canvas = document.createElement('canvas');
@@ -2198,7 +2200,8 @@ function initEditTab() {
       const applyAllCheck = document.getElementById('edit-apply-all-pages');
       const applyAll = applyAllCheck ? applyAllCheck.checked : false;
 
-      editedPdfBytes = await saveEditedPDF(originalPdfBytes, annotations, applyAll, (progress, message) => {
+      const safePdfBytes = originalPdfBytes ? originalPdfBytes.slice(0) : new ArrayBuffer(0);
+      editedPdfBytes = await saveEditedPDF(safePdfBytes, annotations, applyAll, (progress, message) => {
         progressBar.style.width = `${progress * 100}%`;
         progressPercent.textContent = `${Math.round(progress * 100)}%`;
         progressMsg.textContent = message;
