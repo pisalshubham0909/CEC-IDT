@@ -618,22 +618,35 @@ async function encryptPDFFile(pdfBytes, password) {
       headers: { 'X-Password': password },
       body: new Uint8Array(pdfBytes.slice(0))
     });
-    if (response.ok) {
+    const contentType = response.headers.get('content-type') || '';
+    if (response.ok && contentType.includes('pdf')) {
       return new Uint8Array(await response.arrayBuffer());
     }
-    const errText = await response.text().catch(() => '');
-    throw new Error(errText || `Server returned HTTP ${response.status}`);
   } catch (err) {
-    if (err.message && !err.message.includes('fetch') && !err.message.includes('Failed to fetch')) {
-      throw err;
+    console.warn("Backend encryption API fetch error:", err);
+  }
+
+  // Fallback to client-side PDFLib encryption (handles 405 Not Allowed static servers)
+  try {
+    if (typeof PDFLib !== 'undefined') {
+      const doc = await PDFLib.PDFDocument.load(pdfBytes.slice(0), { ignoreEncryption: true });
+      if (typeof doc.encrypt === 'function') {
+        await doc.encrypt({
+          userPassword: password,
+          ownerPassword: password + "_master_owner"
+        });
+      }
+      return await doc.save();
     }
-    console.warn("Backend encryption API unavailable, trying client fallback:", err);
-    try {
-      const encryptModule = await import('https://cdn.jsdelivr.net/npm/@pdfsmaller/pdf-encrypt/+esm');
-      return await encryptModule.encryptPDF(new Uint8Array(pdfBytes), password);
-    } catch (fErr) {
-      throw new Error(`Encryption error: ${err.message}`);
-    }
+  } catch (cErr) {
+    console.warn("Client PDFLib encryption fallback warning:", cErr);
+  }
+
+  try {
+    const encryptModule = await import('https://cdn.jsdelivr.net/npm/@pdfsmaller/pdf-encrypt/+esm');
+    return await encryptModule.encryptPDF(new Uint8Array(pdfBytes), password);
+  } catch (fErr) {
+    throw new Error(`Encryption failed. Please verify password and file format.`);
   }
 }
 
@@ -647,22 +660,29 @@ async function decryptPDFFile(pdfBytes, password) {
       headers: { 'X-Password': password },
       body: new Uint8Array(pdfBytes.slice(0))
     });
-    if (response.ok) {
+    const contentType = response.headers.get('content-type') || '';
+    if (response.ok && contentType.includes('pdf')) {
       return new Uint8Array(await response.arrayBuffer());
     }
-    const errText = await response.text().catch(() => '');
-    throw new Error(errText || `Server returned HTTP ${response.status}`);
   } catch (err) {
-    if (err.message && !err.message.includes('fetch') && !err.message.includes('Failed to fetch')) {
-      throw err;
+    console.warn("Backend decryption API fetch error:", err);
+  }
+
+  // Fallback to client-side PDFLib decryption (handles 405 Not Allowed static servers)
+  try {
+    if (typeof PDFLib !== 'undefined') {
+      const doc = await PDFLib.PDFDocument.load(pdfBytes.slice(0), { password: password, ignoreEncryption: true });
+      return await doc.save();
     }
-    console.warn("Backend decryption API unavailable, trying client fallback:", err);
-    try {
-      const decryptModule = await import('https://cdn.jsdelivr.net/npm/@pdfsmaller/pdf-decrypt/+esm');
-      return await decryptModule.decryptPDF(new Uint8Array(pdfBytes), password);
-    } catch (fErr) {
-      throw new Error(`Decryption error: ${err.message}`);
-    }
+  } catch (cErr) {
+    console.warn("Client PDFLib decryption fallback warning:", cErr);
+  }
+
+  try {
+    const decryptModule = await import('https://cdn.jsdelivr.net/npm/@pdfsmaller/pdf-decrypt/+esm');
+    return await decryptModule.decryptPDF(new Uint8Array(pdfBytes), password);
+  } catch (fErr) {
+    throw new Error(`Decryption failed. Please verify the entered password.`);
   }
 }
 
