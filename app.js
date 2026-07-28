@@ -1073,6 +1073,15 @@ function initSecurityTab() {
     }
   }
 
+  if (passwordInput) {
+    passwordInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && !btnRun.disabled) {
+        e.preventDefault();
+        btnRun.click();
+      }
+    });
+  }
+
   btnClear.addEventListener('click', resetSecurityTab);
   
   function resetSecurityTab() {
@@ -1086,6 +1095,11 @@ function initSecurityTab() {
   }
   
   btnRun.addEventListener('click', async () => {
+    if (!securityFile) {
+      alert("Please select a PDF document first.");
+      return;
+    }
+
     const password = passwordInput ? passwordInput.value : '';
     if (!password && modeSelect.value === 'encrypt') {
       if (passwordInput) {
@@ -1105,7 +1119,7 @@ function initSecurityTab() {
       const fileBytes = await fileToArrayBuffer(securityFile);
       
       if (modeSelect.value === 'encrypt') {
-        progressMsg.textContent = "Encrypting file stream...";
+        progressMsg.textContent = "Encrypting file stream with AES-256 password protection...";
         progressBar.style.width = "40%";
         progressPercent.textContent = "40%";
         
@@ -1113,8 +1127,8 @@ function initSecurityTab() {
         
         progressBar.style.width = "100%";
         progressPercent.textContent = "100%";
-        progressMsg.textContent = "Encryption finished!";
-        successTitle.textContent = "Encryption Succeeded!";
+        progressMsg.textContent = "Encryption finished! Password Protection Active.";
+        successTitle.textContent = "PDF Password Security Applied!";
       } else {
         progressMsg.textContent = "Removing security layers...";
         progressBar.style.width = "40%";
