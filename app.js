@@ -1702,6 +1702,13 @@ function initEditTab() {
   let pdfDocumentInstance = null;
   let savedPageNodes = {}; // Cache added annotations per page: { pageIndex: [HTMLNodeClones] }
 
+  const btnLoadLayout = document.getElementById('btn-load-edit-layout');
+  if (btnLoadLayout) {
+    btnLoadLayout.addEventListener('click', () => {
+      if (pdfDocumentInstance) renderWorkspace();
+    });
+  }
+
   function saveCurrentPageNodes(pageIndex) {
     const overlay = document.getElementById(`editor-overlay-${pageIndex}`);
     if (!overlay) return;
@@ -1710,61 +1717,91 @@ function initEditTab() {
 
   async function renderWorkspace() {
     if (!pdfDocumentInstance) return;
-    workspace.innerHTML = '';
+    workspace.style.display = 'flex';
+    workspace.innerHTML = '<span style="color: var(--text-muted); font-size: 0.9rem;">Rendering live PDF visual editor preview layout...</span>';
 
-    const pageIndex = activePageIndex;
-    const pageNum = pageIndex + 1;
-    const page = await pdfDocumentInstance.getPage(pageNum);
-    const scaleFactor = Math.min(1.0, 750 / page.getViewport({ scale: 1.0 }).width);
-    const viewport = page.getViewport({ scale: scaleFactor });
+    try {
+      workspace.innerHTML = '';
 
-    const frame = document.createElement('div');
-    frame.className = 'editor-page-frame';
-    frame.id = `editor-page-${pageIndex}`;
-    frame.style.width = `${viewport.width}px`;
-    frame.style.height = `${viewport.height}px`;
-    frame.style.borderColor = 'var(--secondary)';
+      for (let pageNum = 1; pageNum <= totalPages; pageNum++) {
+        const pageIndex = pageNum - 1;
+        const page = await pdfDocumentInstance.getPage(pageNum);
+        const scaleFactor = Math.min(1.0, 750 / page.getViewport({ scale: 1.0 }).width);
+        const viewport = page.getViewport({ scale: scaleFactor });
 
-    const canvas = document.createElement('canvas');
-    canvas.className = 'editor-canvas';
-    canvas.width = viewport.width;
-    canvas.height = viewport.height;
-    const context = canvas.getContext('2d', { alpha: false });
+        const frame = document.createElement('div');
+        frame.className = 'editor-page-frame';
+        frame.id = `editor-page-${pageIndex}`;
+        frame.style.width = `${viewport.width}px`;
+        frame.style.height = `${viewport.height}px`;
+        frame.style.borderColor = pageIndex === activePageIndex ? 'var(--secondary)' : 'rgba(255,255,255,0.15)';
+        frame.style.position = 'relative';
+        frame.style.marginBottom = '1.5rem';
 
-    const overlay = document.createElement('div');
-    overlay.className = 'editor-overlay';
-    overlay.id = `editor-overlay-${pageIndex}`;
+        // Page Header Label Badge
+        const badge = document.createElement('div');
+        badge.style.position = 'absolute';
+        badge.style.top = '-28px';
+        badge.style.left = '0';
+        badge.style.fontSize = '0.75rem';
+        badge.style.fontWeight = '600';
+        badge.style.color = 'var(--text-muted)';
+        badge.textContent = `Page ${pageNum} of ${totalPages}`;
+        frame.appendChild(badge);
 
-    // Restore previously saved annotations for this page
-    if (savedPageNodes[pageIndex]) {
-      savedPageNodes[pageIndex].forEach(clonedChild => {
-        const rehydrated = clonedChild.cloneNode(true);
-        overlay.appendChild(rehydrated);
-        const delBtn = rehydrated.querySelector('.editor-node-delete-btn');
-        const resizeHandle = rehydrated.querySelector('.editor-node-resize-handle');
-        makeElementDraggable(rehydrated, overlay);
-        if (resizeHandle) makeElementResizable(rehydrated, resizeHandle);
-        if (delBtn) {
-          delBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            rehydrated.remove();
+        const canvas = document.createElement('canvas');
+        canvas.className = 'editor-canvas';
+        canvas.width = viewport.width;
+        canvas.height = viewport.height;
+        const context = canvas.getContext('2d', { alpha: false });
+
+        const overlay = document.createElement('div');
+        overlay.className = 'editor-overlay';
+        overlay.id = `editor-overlay-${pageIndex}`;
+
+        // Restore previously saved annotations for this page
+        if (savedPageNodes[pageIndex]) {
+          savedPageNodes[pageIndex].forEach(clonedChild => {
+            const rehydrated = clonedChild.cloneNode(true);
+            overlay.appendChild(rehydrated);
+            const delBtn = rehydrated.querySelector('.editor-node-delete-btn');
+            const resizeHandle = rehydrated.querySelector('.editor-node-resize-handle');
+            makeElementDraggable(rehydrated, overlay);
+            if (resizeHandle) makeElementResizable(rehydrated, resizeHandle);
+            if (delBtn) {
+              delBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                rehydrated.remove();
+              });
+            }
           });
         }
-      });
+
+        frame.appendChild(canvas);
+        frame.appendChild(overlay);
+        workspace.appendChild(frame);
+
+        requestAnimationFrame(async () => {
+          await page.render({ canvasContext: context, viewport: viewport }).promise;
+        });
+
+        frame.addEventListener('click', () => {
+          activePageIndex = pageIndex;
+          document.querySelectorAll('.editor-page-frame').forEach(f => f.style.borderColor = 'rgba(255,255,255,0.15)');
+          frame.style.borderColor = 'var(--secondary)';
+        });
+      }
+    } catch (err) {
+      console.error(err);
+      workspace.innerHTML = '<span style="color: var(--error);">Failed to load visual editor layout.</span>';
     }
-
-    frame.appendChild(canvas);
-    frame.appendChild(overlay);
-    workspace.appendChild(frame);
-
-    await page.render({ canvasContext: context, viewport: viewport }).promise;
   }
 
   async function loadFile(file) {
     editFile = file;
     dropzone.style.display = 'none';
     infoBlock.style.display = 'block';
-    if (navBar) navBar.style.display = 'flex';
+    if (btnLoadLayout) btnLoadLayout.style.display = 'inline-flex';
     btnRun.disabled = false;
     successCard.style.display = 'none';
     annotations = [];
@@ -1777,7 +1814,6 @@ function initEditTab() {
     outputNameInput.value = file.name.replace('.pdf', '_Signed.pdf');
     
     workspace.style.display = 'flex';
-    workspace.innerHTML = '<span style="color: var(--text-muted); font-size: 0.9rem;">Rendering visual editor workspace...</span>';
     
     try {
       originalPdfBytes = await fileToArrayBuffer(file);
@@ -1785,12 +1821,6 @@ function initEditTab() {
       pdfDocumentInstance = await pdfjsLib.getDocument({ data: originalPdfBytes.slice(0) }).promise;
       totalPages = pdfDocumentInstance.numPages;
       filePagesLabel.textContent = `Pages: ${totalPages}`;
-      
-      // Auto-set fast single-page view for documents with > 10 pages
-      if (totalPages > 10) {
-        currentViewMode = 'single';
-        if (viewModeSelect) viewModeSelect.value = 'single';
-      }
       
       await renderWorkspace();
       
