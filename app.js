@@ -1702,44 +1702,6 @@ function initEditTab() {
   let pdfDocumentInstance = null;
   let savedPageNodes = {}; // Cache added annotations per page: { pageIndex: [HTMLNodeClones] }
 
-  const navBar = document.getElementById('edit-page-nav-bar');
-  const btnPrevPage = document.getElementById('btn-edit-prev-page');
-  const btnNextPage = document.getElementById('btn-edit-next-page');
-  const pageIndicator = document.getElementById('edit-page-indicator');
-  const jumpInput = document.getElementById('edit-jump-page-input');
-  const btnJump = document.getElementById('btn-edit-jump-page');
-
-  if (btnPrevPage) {
-    btnPrevPage.addEventListener('click', () => {
-      if (activePageIndex > 0) {
-        saveCurrentPageNodes(activePageIndex);
-        activePageIndex--;
-        renderWorkspace();
-      }
-    });
-  }
-
-  if (btnNextPage) {
-    btnNextPage.addEventListener('click', () => {
-      if (activePageIndex < totalPages - 1) {
-        saveCurrentPageNodes(activePageIndex);
-        activePageIndex++;
-        renderWorkspace();
-      }
-    });
-  }
-
-  if (btnJump) {
-    btnJump.addEventListener('click', () => {
-      const targetPage = parseInt(jumpInput.value, 10);
-      if (!isNaN(targetPage) && targetPage >= 1 && targetPage <= totalPages) {
-        saveCurrentPageNodes(activePageIndex);
-        activePageIndex = targetPage - 1;
-        renderWorkspace();
-      }
-    });
-  }
-
   function saveCurrentPageNodes(pageIndex) {
     const overlay = document.getElementById(`editor-overlay-${pageIndex}`);
     if (!overlay) return;
@@ -1749,14 +1711,6 @@ function initEditTab() {
   async function renderWorkspace() {
     if (!pdfDocumentInstance) return;
     workspace.innerHTML = '';
-    
-    if (pageIndicator) {
-      pageIndicator.textContent = `Page ${activePageIndex + 1} of ${totalPages}`;
-    }
-    if (jumpInput) {
-      jumpInput.value = activePageIndex + 1;
-      jumpInput.max = totalPages;
-    }
 
     const pageIndex = activePageIndex;
     const pageNum = pageIndex + 1;
