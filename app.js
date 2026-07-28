@@ -611,7 +611,7 @@ function initResizerTab() {
         try {
           const arrayBuffer = await fileToArrayBuffer(processedFile);
           pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+          const pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
           numPages = pdf.numPages;
         } catch (pErr) {
           console.warn("Could not parse page count:", pErr);
@@ -687,7 +687,7 @@ function initResizerTab() {
       const firstItem = resizeQueue[0];
       const arrayBuffer = await fileToArrayBuffer(firstItem.file);
       pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
       const page = await pdf.getPage(1);
       const viewport = page.getViewport({ scale: 0.4 });
       
@@ -990,7 +990,7 @@ function initSecurityTab() {
     try {
       const arrayBuffer = await fileToArrayBuffer(file);
       pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
       filePagesLabel.textContent = `Pages: ${pdf.numPages}`;
       
       const page = await pdf.getPage(1);
@@ -1199,7 +1199,7 @@ function initSplitTab() {
     try {
       const arrayBuffer = await fileToArrayBuffer(file);
       pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
       totalPagesCount = pdf.numPages;
       filePagesLabel.textContent = `Pages: ${totalPagesCount}`;
       
@@ -1727,19 +1727,20 @@ function initEditTab() {
       try {
         const page = await pdfDocumentInstance.getPage(pageNum);
         const origViewport = page.getViewport({ scale: 1.0 });
-        const a4Width = 700;
-        const scaleFactor = a4Width / origViewport.width;
+        const targetWidth = Math.min(720, Math.max(320, workspace.clientWidth - 60 || 700));
+        const scaleFactor = targetWidth / origViewport.width;
         const viewport = page.getViewport({ scale: scaleFactor });
 
         const frame = document.createElement('div');
         frame.className = 'editor-page-frame';
         frame.id = `editor-page-${pageIndex}`;
-        frame.style.width = `${a4Width}px`;
-        frame.style.height = `${Math.round(a4Width * 1.4142)}px`; // Standard A4 Portrait Proportion (1:1.414)
+        frame.style.width = `${viewport.width}px`;
+        frame.style.height = `${viewport.height}px`;
         frame.style.borderColor = pageIndex === activePageIndex ? 'var(--secondary)' : 'rgba(255,255,255,0.15)';
         frame.style.position = 'relative';
-        frame.style.marginBottom = '1.5rem';
+        frame.style.marginBottom = '2rem';
         frame.style.background = '#ffffff';
+        frame.style.boxShadow = '0 8px 30px rgba(0, 0, 0, 0.4)';
 
         // Page Header Label Badge
         const badge = document.createElement('div');
@@ -1749,7 +1750,7 @@ function initEditTab() {
         badge.style.fontSize = '0.75rem';
         badge.style.fontWeight = '600';
         badge.style.color = 'var(--text-muted)';
-        badge.textContent = `A4 Page ${pageNum} of ${totalPages}`;
+        badge.textContent = `Page ${pageNum} of ${totalPages}`;
         frame.appendChild(badge);
 
         const canvas = document.createElement('canvas');
@@ -1827,7 +1828,7 @@ function initEditTab() {
       if (typeof pdfjsLib !== 'undefined') {
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
       }
-      const dataCopy = new Uint8Array(originalPdfBytes);
+      const dataCopy = new Uint8Array(originalPdfBytes.slice(0));
       pdfDocumentInstance = await pdfjsLib.getDocument({ data: dataCopy }).promise;
       totalPages = pdfDocumentInstance.numPages;
       filePagesLabel.textContent = `Pages: ${totalPages}`;
@@ -2035,7 +2036,10 @@ function initEditTab() {
   });
   
   function insertImageAnnotation(src) {
-    const overlay = document.getElementById(`editor-overlay-${activePageIndex}`);
+    let overlay = document.getElementById(`editor-overlay-${activePageIndex}`);
+    if (!overlay) {
+      overlay = document.querySelector('.editor-overlay');
+    }
     if (!overlay) return;
     
     const node = document.createElement('div');
@@ -2149,8 +2153,8 @@ function initEditTab() {
 
         if (!nodeElements || nodeElements.length === 0) continue;
 
-        const frameW = 750; // Reference page frame width
-        const frameH = 1000; // Reference page frame height
+        const frameW = (overlay && overlay.offsetWidth) ? overlay.offsetWidth : 700;
+        const frameH = (overlay && overlay.offsetHeight) ? overlay.offsetHeight : 990;
         
         nodeElements.forEach(node => {
           if (node.classList.contains('editor-text-node')) {
@@ -2325,7 +2329,7 @@ function initCompressTab() {
     try {
       const arrayBuffer = await fileToArrayBuffer(file);
       pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
       filePagesLabel.textContent = `Pages: ${pdf.numPages}`;
       
       const page = await pdf.getPage(1);
@@ -2548,7 +2552,7 @@ function initConvertersTab() {
       try {
         const arrayBuffer = await fileToArrayBuffer(file);
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+        const pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
         
         const page = await pdf.getPage(1);
         const viewport = page.getViewport({ scale: 0.35 });

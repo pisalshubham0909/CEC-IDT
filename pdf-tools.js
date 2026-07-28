@@ -503,7 +503,23 @@ async function saveEditedPDF(originalBytes, annotations, applyToAllPages = false
     applyToAllPages = false;
   }
   onProgress(0.2, "Loading original document...");
-  const pdfDoc = await PDFLib.PDFDocument.load(originalBytes);
+  
+  let safeBytes;
+  try {
+    if (originalBytes instanceof Uint8Array) {
+      safeBytes = originalBytes.byteLength > 0 ? new Uint8Array(originalBytes) : new Uint8Array(0);
+    } else if (originalBytes instanceof ArrayBuffer) {
+      safeBytes = originalBytes.byteLength > 0 ? new Uint8Array(originalBytes.slice(0)) : new Uint8Array(0);
+    } else if (originalBytes && originalBytes.buffer && originalBytes.buffer.byteLength > 0) {
+      safeBytes = new Uint8Array(originalBytes.buffer.slice(0));
+    } else {
+      safeBytes = new Uint8Array(originalBytes || 0);
+    }
+  } catch (e) {
+    safeBytes = new Uint8Array(originalBytes || 0);
+  }
+
+  const pdfDoc = await PDFLib.PDFDocument.load(safeBytes);
   const pages = pdfDoc.getPages();
   const standardFont = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
 
@@ -880,7 +896,7 @@ function loadScript(url) {
  */
 async function extractTextFromPDF(arrayBuffer, onProgress) {
   pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+  const pdf = await pdfjsLib.getDocument({ data: arrayBuffer.slice(0) }).promise;
   const numPages = pdf.numPages;
   let textLines = [];
   
