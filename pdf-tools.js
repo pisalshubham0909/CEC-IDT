@@ -681,13 +681,22 @@ async function encryptPDFFile(pdfBytes, passwordOptions) {
       if (resBytes.byteLength > 0) {
         return resBytes;
       }
-    } else {
+    } else if (response.status === 400) {
       const errText = await response.text();
-      throw new Error(errText || 'PDF encryption request failed.');
+      throw new Error(cleanHtmlErrorText(errText) || 'Encryption failed: Invalid parameters.');
     }
   } catch (err) {
-    console.warn("Backend encryption API error:", err);
-    throw err;
+    if (err.message && !err.message.includes('405') && !err.message.includes('Failed to fetch') && !err.message.includes('404')) {
+      console.warn("Backend encryption error:", err);
+    }
+  }
+
+  try {
+    const encryptModule = await import('https://cdn.jsdelivr.net/npm/@pdfsmaller/pdf-encrypt/+esm');
+    return await encryptModule.encryptPDF(new Uint8Array(pdfBytes.slice(0)), userPassword);
+  } catch (fErr) {
+    console.warn("Client pdf-encrypt module error:", fErr);
+    throw new Error("Encryption requires the local server running. Please launch serve.py (python serve.py) to enable full AES-256 encryption.");
   }
 }
 
@@ -704,26 +713,73 @@ async function decryptPDFFile(pdfBytes, password) {
     const contentType = response.headers.get('content-type') || '';
     if (response.ok && contentType.includes('pdf')) {
       return new Uint8Array(await response.arrayBuffer());
-    } else {
-      let errMsg = "Decryption failed. Please verify the entered password.";
-      try {
-        const textRes = await response.text();
-        if (textRes) {
-          if (textRes.includes("Incorrect password")) {
-            errMsg = "Incorrect password provided. Please verify the password and try again.";
-          } else {
-            errMsg = textRes;
-          }
-        }
-      } catch (e) {
-        console.warn("Error reading error response text:", e);
-      }
-      throw new Error(errMsg);
+    } else if (response.status === 400) {
+      throw new Error("Incorrect password provided. Please verify the password and try again.");
     }
   } catch (err) {
-    console.warn("Backend decryption API error:", err);
-    throw err;
+    if (err.message && err.message.includes("Incorrect password")) {
+      throw err;
+    }
+    console.warn("Backend decryption endpoint unavailable (or returned 405), falling back to browser decryption:", err);
   }
+
+  return await clientSideDecryptPDF(pdfBytes, password);
+}
+
+/**
+ * Pure client-side PDF decryption via PDF.js rendering & PDFLib synthesis
+ */
+async function clientSideDecryptPDF(pdfBytes, password) {
+  if (typeof pdfjsLib === 'undefined' || typeof PDFLib === 'undefined') {
+    throw new Error("Client-side decryption libraries not loaded.");
+  }
+
+  try {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const loadingTask = pdfjsLib.getDocument({ data: new Uint8Array(pdfBytes.slice(0)), password: password || '' });
+    const pdfDoc = await loadingTask.promise;
+    const numPages = pdfDoc.numPages;
+
+    const outPdf = await PDFLib.PDFDocument.create();
+
+    for (let i = 1; i <= numPages; i++) {
+      const page = await pdfDoc.getPage(i);
+      const viewport = page.getViewport({ scale: 2.0 });
+
+      const canvas = document.createElement('canvas');
+      canvas.width = viewport.width;
+      canvas.height = viewport.height;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+
+      const imgDataUrl = canvas.toDataURL('image/png');
+      const pngImage = await outPdf.embedPng(imgDataUrl);
+      const pdfPage = outPdf.addPage([viewport.width / 2.0, viewport.height / 2.0]);
+      pdfPage.drawImage(pngImage, {
+        x: 0,
+        y: 0,
+        width: viewport.width / 2.0,
+        height: viewport.height / 2.0
+      });
+    }
+
+    return await outPdf.save();
+  } catch (err) {
+    if (err && (err.name === 'PasswordException' || err.message?.includes('password') || err.message?.includes('Password') || err.code === 1)) {
+      throw new Error("Incorrect password provided. Please verify the password and try again.");
+    }
+    throw new Error(`Decryption failed: ${err.message || 'Please verify the entered password.'}`);
+  }
+}
+
+function cleanHtmlErrorText(rawText) {
+  if (!rawText) return '';
+  if (rawText.includes('<html') || rawText.includes('405 Not Allowed')) {
+    return '405 Not Allowed - Backend server required. Please run python serve.py.';
+  }
+  return rawText.replace(/<[^>]*>?/gm, '').trim();
 }
 
 /**

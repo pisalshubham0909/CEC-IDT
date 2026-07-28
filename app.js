@@ -1324,7 +1324,13 @@ function initSecurityTab() {
         }
       }
     } catch (err) {
-      alert(`Security operation failed: ${err.message}`);
+      let msg = err.message || 'Unknown error';
+      if (msg.includes('<html') || msg.includes('405 Not Allowed')) {
+        msg = 'Encryption/Decryption server endpoint not reachable (405 Method Not Allowed). Please launch serve.py (python serve.py) to enable full server mode.';
+      } else {
+        msg = msg.replace(/<[^>]*>?/gm, '').trim();
+      }
+      alert(`Security operation failed: ${msg}`);
       progressContainer.style.display = 'none';
       btnRun.disabled = false;
       btnClear.disabled = false;
