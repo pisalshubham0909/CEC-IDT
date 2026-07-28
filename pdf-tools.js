@@ -646,6 +646,53 @@ async function saveEditedPDF(originalBytes, annotations, applyToAllPages = false
 /**
  * Encrypt a PDF document client-side or using Python Backend API across ALL pages
  */
+async function callBackendSecurityApi(endpoint, headers, body) {
+  const host = window.location.hostname || '127.0.0.1';
+  const origins = [
+    '',
+    `http://${host}:8000`,
+    'http://127.0.0.1:8000',
+    'http://localhost:8000',
+    'http://127.0.0.1:8080'
+  ];
+
+  let lastError = null;
+  let lastStatus = 0;
+
+  for (const origin of origins) {
+    try {
+      const url = `${origin}/api${endpoint}`;
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: headers,
+        body: body
+      });
+
+      lastStatus = response.status;
+
+      if (response.ok) {
+        const contentType = response.headers.get('content-type') || '';
+        if (contentType.includes('pdf')) {
+          const resBytes = new Uint8Array(await response.arrayBuffer());
+          if (resBytes.byteLength > 0) {
+            return { ok: true, bytes: resBytes };
+          }
+        }
+      } else if (response.status === 400) {
+        const text = await response.text();
+        return { ok: false, status: 400, message: cleanHtmlErrorText(text) || "Incorrect password or invalid parameters." };
+      }
+    } catch (err) {
+      lastError = err;
+    }
+  }
+
+  return { ok: false, status: lastStatus || 0, error: lastError };
+}
+
+/**
+ * Encrypt a PDF document using Python Backend API or client-side module fallback
+ */
 async function encryptPDFFile(pdfBytes, passwordOptions) {
   let userPassword = '';
   let ownerPassword = '';
@@ -663,40 +710,27 @@ async function encryptPDFFile(pdfBytes, passwordOptions) {
     algo = passwordOptions.algo || 'AES-256';
   }
 
-  try {
-    const response = await fetch('/api/encrypt', {
-      method: 'POST',
-      headers: {
-        'X-Password': encodeURIComponent(userPassword),
-        'X-Owner-Password': encodeURIComponent(ownerPassword),
-        'X-Security-Mode': mode,
-        'X-Permissions': encodeURIComponent(JSON.stringify(permissions)),
-        'X-Encryption-Level': algo
-      },
-      body: new Uint8Array(pdfBytes.slice(0))
-    });
-    const contentType = response.headers.get('content-type') || '';
-    if (response.ok && contentType.includes('pdf')) {
-      const resBytes = new Uint8Array(await response.arrayBuffer());
-      if (resBytes.byteLength > 0) {
-        return resBytes;
-      }
-    } else if (response.status === 400) {
-      const errText = await response.text();
-      throw new Error(cleanHtmlErrorText(errText) || 'Encryption failed: Invalid parameters.');
-    }
-  } catch (err) {
-    if (err.message && !err.message.includes('405') && !err.message.includes('Failed to fetch') && !err.message.includes('404')) {
-      console.warn("Backend encryption error:", err);
-    }
+  const headers = {
+    'X-Password': encodeURIComponent(userPassword),
+    'X-Owner-Password': encodeURIComponent(ownerPassword),
+    'X-Security-Mode': mode,
+    'X-Permissions': encodeURIComponent(JSON.stringify(permissions)),
+    'X-Encryption-Level': algo
+  };
+
+  const res = await callBackendSecurityApi('/encrypt', headers, new Uint8Array(pdfBytes.slice(0)));
+  if (res.ok) {
+    return res.bytes;
+  }
+  if (res.status === 400) {
+    throw new Error(res.message);
   }
 
   try {
     const encryptModule = await import('https://cdn.jsdelivr.net/npm/@pdfsmaller/pdf-encrypt/+esm');
     return await encryptModule.encryptPDF(new Uint8Array(pdfBytes.slice(0)), userPassword);
   } catch (fErr) {
-    console.warn("Client pdf-encrypt module error:", fErr);
-    throw new Error("Encryption requires the local server running. Please launch serve.py (python serve.py) to enable full AES-256 encryption.");
+    throw new Error("PDF encryption requires the Python backend server. Please launch 'python serve.py' in the PDF Merger folder and open http://127.0.0.1:8000.");
   }
 }
 
@@ -704,23 +738,14 @@ async function encryptPDFFile(pdfBytes, passwordOptions) {
  * Decrypt a PDF document client-side or using Python Backend API across ALL pages
  */
 async function decryptPDFFile(pdfBytes, password) {
-  try {
-    const response = await fetch('/api/decrypt', {
-      method: 'POST',
-      headers: { 'X-Password': encodeURIComponent(password || '') },
-      body: new Uint8Array(pdfBytes.slice(0))
-    });
-    const contentType = response.headers.get('content-type') || '';
-    if (response.ok && contentType.includes('pdf')) {
-      return new Uint8Array(await response.arrayBuffer());
-    } else if (response.status === 400) {
-      throw new Error("Incorrect password provided. Please verify the password and try again.");
-    }
-  } catch (err) {
-    if (err.message && err.message.includes("Incorrect password")) {
-      throw err;
-    }
-    console.warn("Backend decryption endpoint unavailable (or returned 405), falling back to browser decryption:", err);
+  const headers = { 'X-Password': encodeURIComponent(password || '') };
+  const res = await callBackendSecurityApi('/decrypt', headers, new Uint8Array(pdfBytes.slice(0)));
+  
+  if (res.ok) {
+    return res.bytes;
+  }
+  if (res.status === 400 || (res.message && res.message.includes("password"))) {
+    throw new Error("Incorrect password provided. Please verify the password and try again.");
   }
 
   return await clientSideDecryptPDF(pdfBytes, password);

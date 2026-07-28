@@ -1325,8 +1325,8 @@ function initSecurityTab() {
       }
     } catch (err) {
       let msg = err.message || 'Unknown error';
-      if (msg.includes('<html') || msg.includes('405 Not Allowed')) {
-        msg = 'Encryption/Decryption server endpoint not reachable (405 Method Not Allowed). Please launch serve.py (python serve.py) to enable full server mode.';
+      if (msg.includes('Failed to fetch') || msg.includes('NetworkError') || msg.includes('405 Not Allowed') || msg.includes('<html')) {
+        msg = "Backend server is unreachable. Please start the server by running 'python serve.py' in the PDF Merger folder, or open http://127.0.0.1:8000 in your web browser.";
       } else {
         msg = msg.replace(/<[^>]*>?/gm, '').trim();
       }
