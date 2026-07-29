@@ -176,7 +176,7 @@ def run_server():
                                         fitz.PDF_PERM_COPY | fitz.PDF_PERM_FORM | fitz.PDF_PERM_MODIFY |
                                         fitz.PDF_PERM_PRINT | fitz.PDF_PERM_PRINT_HQ)
                                 
-                            doc.save(out_buffer, encryption=enc_method, user_pw=user_pw, owner_pw=owner_pw, permissions=perm, clean=True, deflate=True, garbage=3)
+                            doc.save(out_buffer, encryption=enc_method, user_pw=user_pw, owner_pw=owner_pw, permissions=perm)
                             doc.close()
                             res_bytes = out_buffer.getvalue()
                         except Exception as e_fitz:
@@ -208,7 +208,7 @@ def run_server():
                                 if auth <= 0:
                                     doc.close()
                                     raise ValueError("Incorrect password for PDF decryption.")
-                            doc.save(out_buffer, encryption=fitz.PDF_ENCRYPT_NONE, clean=True, deflate=True, garbage=3)
+                            doc.save(out_buffer, encryption=fitz.PDF_ENCRYPT_NONE)
                             doc.close()
                             res_bytes = out_buffer.getvalue()
                         except ValueError as val_err:

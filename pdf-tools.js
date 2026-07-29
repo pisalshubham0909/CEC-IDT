@@ -755,6 +755,15 @@ async function decryptPDFFile(pdfBytes, password) {
  * Pure client-side PDF decryption via PDF.js rendering & PDFLib synthesis
  */
 async function clientSideDecryptPDF(pdfBytes, password) {
+  if (typeof PDFLib !== 'undefined') {
+    try {
+      const pdfDoc = await PDFLib.PDFDocument.load(new Uint8Array(pdfBytes.slice(0)), { ignoreEncryption: true });
+      return await pdfDoc.save();
+    } catch (ignoreErr) {
+      console.warn("PDFLib ignoreEncryption load note:", ignoreErr);
+    }
+  }
+
   if (typeof pdfjsLib === 'undefined' || typeof PDFLib === 'undefined') {
     throw new Error("Client-side decryption libraries not loaded.");
   }
